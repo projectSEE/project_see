@@ -1,6 +1,6 @@
 {
-    "name": "blind_assist",
-    "short_name": "blind_assist",
+    "name": "visual_assistant_app",
+    "short_name": "visual_assistant_app",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,4 +1,4 @@
-name: blind_assist
+name: visual_assistant_app
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -51,13 +51,13 @@ dependencies:
   camera: ^0.11.0+2
   
   # Text-to-Speech for voice announcements
-  flutter_tts: ^4.2.0
+  flutter_tts: ^4.2.5
   
   # Vibration feedback
   vibration: ^2.0.0
   
   # Permission handling
-  permission_handler: ^11.3.1
+  permission_handler: ^12.0.1
   
   # Firebase for Vertex AI (supports Live API)
   firebase_core: ^4.4.0
@@ -67,16 +67,41 @@ dependencies:
   speech_to_text: ^7.0.0
   
   # Audio recording for live streaming (matching official demo)
-  record: ^6.1.1
+  record: ^6.1.2
   
   # Google Maps Navigation
   google_maps_flutter: ^2.5.0
-  geolocator: ^11.0.0
+  geolocator: ^13.0.2
   geocoding: ^3.0.0
   http: ^1.2.0
   
   # Audio playback for Gemini Live audio responses
   just_audio: ^0.9.36
+
+  # ===== Chat Feature Dependencies =====
+  
+  # Firestore database & Firebase Storage
+  cloud_firestore: ^6.1.2
+  firebase_storage: ^13.0.6
+  
+  # Image picker for chat attachments
+  image_picker: ^1.2.1
+  
+  # File system path access
+  path_provider: ^2.1.5
+  
+  # PCM audio playback for Live API
+  flutter_pcm_sound: ^3.3.3
+  
+  # Share/export conversations
+  share_plus: ^10.1.4
+  
+  # Local settings persistence
+  shared_preferences: ^2.5.3
+  
+  # PDF export for conversations
+  pdf: ^3.11.2
+  printing: ^5.14.2
 
 dev_dependencies:
   flutter_test:
@@ -103,6 +128,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/models/
+    - assets/google_fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
