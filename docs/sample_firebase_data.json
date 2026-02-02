@@ -1,0 +1,126 @@
+{
+  "users": {
+    "demo_user": {
+      "profile": {
+        "name": "Demo User",
+        "email": "demo@example.com",
+        "lastActive": 1706400000000
+      },
+      "accessibilitySettings": {
+        "visualImpairment": true,
+        "hearingImpairment": false,
+        "mobilityImpairment": false,
+        "preferredVoice": "Kore",
+        "speechRate": 0.9,
+        "highContrastMode": true
+      }
+    }
+  },
+  "pois": {
+    "poi_cafe_entrance": {
+      "name": "KitaHack Cafe Entrance",
+      "type": "shop_entrance",
+      "description": "The main entrance to KitaHack Cafe. There's a slight ramp leading up to double automatic sliding doors. The cafe is known for its excellent coffee and accessible seating.",
+      "coords": {
+        "latitude": 3.1390,
+        "longitude": 101.6869
+      },
+      "accessibilityFeatures": {
+        "wheelchairAccessible": true,
+        "hasRamp": true,
+        "hasElevator": false,
+        "brailleSignage": false,
+        "audioAnnouncements": false,
+        "tactileFlooring": true
+      },
+      "audioGuidanceURL": "gs://your-project-id.appspot.com/audio/kitahack_cafe_entrance.mp3",
+      "contactInfo": "+60123456789",
+      "safetyNotes": "Watch out for delivery bikes in the morning. Pavement can be uneven directly outside the door.",
+      "lastUpdated": 1706385600000
+    },
+    "poi_mrt_station": {
+      "name": "KLCC MRT Station - Exit A",
+      "type": "public_transport",
+      "description": "Main accessible exit from KLCC MRT station. Features wide gates and direct elevator access to street level. Connects to Suria KLCC shopping mall.",
+      "coords": {
+        "latitude": 3.1580,
+        "longitude": 101.7115
+      },
+      "accessibilityFeatures": {
+        "wheelchairAccessible": true,
+        "hasRamp": true,
+        "hasElevator": true,
+        "brailleSignage": true,
+        "audioAnnouncements": true,
+        "tactileFlooring": true
+      },
+      "audioGuidanceURL": "",
+      "contactInfo": "+603-2267 8000",
+      "safetyNotes": "Can be crowded during rush hours (7-9am, 5-7pm). Elevators are on the north side of the platform.",
+      "lastUpdated": 1706385600000
+    },
+    "poi_hospital_entrance": {
+      "name": "KL General Hospital - Main Entrance",
+      "type": "hospital",
+      "description": "Main entrance to KL General Hospital with dedicated accessible drop-off zone. Porters available to assist. Registration counter is 20 meters from entrance on the right.",
+      "coords": {
+        "latitude": 3.1715,
+        "longitude": 101.7010
+      },
+      "accessibilityFeatures": {
+        "wheelchairAccessible": true,
+        "hasRamp": true,
+        "hasElevator": true,
+        "brailleSignage": true,
+        "audioAnnouncements": true,
+        "tactileFlooring": true
+      },
+      "audioGuidanceURL": "",
+      "contactInfo": "+603-2615 5555",
+      "safetyNotes": "Ambulance bay is separate - do not wait in that zone. Wheelchair lending available at information counter.",
+      "lastUpdated": 1706385600000
+    },
+    "poi_accessible_restroom": {
+      "name": "Suria KLCC - Accessible Restroom (Level G)",
+      "type": "restroom",
+      "description": "Fully accessible restroom located near the food court on Ground Floor. Features grab bars, emergency pull cord, and spacious interior.",
+      "coords": {
+        "latitude": 3.1580,
+        "longitude": 101.7120
+      },
+      "accessibilityFeatures": {
+        "wheelchairAccessible": true,
+        "hasRamp": false,
+        "hasElevator": false,
+        "brailleSignage": true,
+        "audioAnnouncements": false,
+        "tactileFlooring": false
+      },
+      "audioGuidanceURL": "",
+      "contactInfo": "",
+      "safetyNotes": "Key available from security desk if door is locked. Located between Food Republic and Cold Storage.",
+      "lastUpdated": 1706385600000
+    },
+    "poi_pedestrian_crossing": {
+      "name": "Jalan Ampang Accessible Crossing",
+      "type": "crossing",
+      "description": "Signal-controlled pedestrian crossing with audio signals for visually impaired users. Extra crossing time available by holding the button.",
+      "coords": {
+        "latitude": 3.1565,
+        "longitude": 101.7100
+      },
+      "accessibilityFeatures": {
+        "wheelchairAccessible": true,
+        "hasRamp": true,
+        "hasElevator": false,
+        "brailleSignage": false,
+        "audioAnnouncements": true,
+        "tactileFlooring": true
+      },
+      "audioGuidanceURL": "",
+      "contactInfo": "",
+      "safetyNotes": "Traffic can be heavy. Listen for the audio signal before crossing. Extended crossing time: hold button for 3 seconds.",
+      "lastUpdated": 1706385600000
+    }
+  }
+}

@@ -1,173 +1,181 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:firebase_ai/firebase_ai.dart';
 
-/// Service for Gemini AI scene description via Firebase AI
+/// GeminiService with support for both normal chat and Live API streaming.
 class GeminiService {
-  GenerativeModel? _model;
-  ChatSession? _chat;
-  bool _isInitialized = false;
-  bool _isProcessing = false;
-  bool _isLiveMode = false;
+  late GenerativeModel _model;
+  LiveGenerativeModel? _liveModel;
+  LiveSession? _session;
+  bool _isLiveSessionActive = false;
 
-  bool get isInitialized => _isInitialized;
-  bool get isProcessing => _isProcessing;
-  bool get isLiveMode => _isLiveMode;
+  GeminiService() {
+    // Initialize the normal model using firebase_ai package
+    _model = FirebaseAI.vertexAI().generativeModel(
+      model: 'gemini-2.5-flash-lite',
+    );
+  }
 
-  /// Initialize Gemini via Firebase AI
-  Future<void> initialize() async {
+  /// Initialize the Live model for real-time audio streaming.
+  /// Uses Vertex AI with us-central1 location (required for Live API).
+  void initializeLiveModel() {
+    _liveModel = FirebaseAI.vertexAI(location: 'us-central1').liveGenerativeModel(
+      model: 'gemini-live-2.5-flash-native-audio',
+      liveGenerationConfig: LiveGenerationConfig(
+        responseModalities: [ResponseModalities.audio],
+        speechConfig: SpeechConfig(voiceName: 'Kore'),
+      ),
+    );
+  }
+
+  /// Send a text/image message using the normal (non-live) API.
+  /// Optionally include database context for contextual responses.
+  Future<String> sendMessage(
+    String text, {
+    Uint8List? imageBytes,
+    String? imageMimeType,
+    Map<String, dynamic>? databaseContext,
+  }) async {
     try {
-      _model = FirebaseAI.vertexAI().generativeModel(
-        model: 'gemini-2.0-flash',
-        generationConfig: GenerationConfig(
-          temperature: 0.7,
-          maxOutputTokens: 300,
-        ),
-        systemInstruction: Content.system('''
-You are a helpful AI assistant for blind people navigating the real world.
-Your role is like a caring companion who helps them understand their surroundings.
-Keep responses SHORT (1-3 sentences), clear, and actionable.
-Focus on safety-relevant information: obstacles, hazards, paths, signs, and people.
-When asked questions, answer directly and helpfully.
-If you see text or signs, read them out loud.
-Speak naturally, as if you're a friend walking beside them.
-'''),
-      );
-      _isInitialized = true;
-      debugPrint('✅ Gemini AI (Firebase AI) initialized');
-    } catch (e) {
-      debugPrint('❌ Gemini init error: $e');
-      _isInitialized = false;
-    }
-  }
-
-  /// Start live mode - creates a chat session for continuous conversation
-  void startLiveMode() {
-    if (_model != null) {
-      _chat = _model!.startChat();
-      _isLiveMode = true;
-      debugPrint('🟢 Gemini Live mode started');
-    }
-  }
-
-  /// Stop live mode
-  void stopLiveMode() {
-    _chat = null;
-    _isLiveMode = false;
-    debugPrint('🔴 Gemini Live mode stopped');
-  }
-
-  /// Describe scene from image file path
-  Future<String> describeScene(String imagePath) async {
-    if (!_isInitialized || _model == null) {
-      return 'Gemini AI is not initialized.';
-    }
-    
-    if (_isProcessing) {
-      return 'Still processing previous request...';
-    }
-    
-    _isProcessing = true;
-    
-    try {
-      final imageFile = File(imagePath);
-      final imageBytes = await imageFile.readAsBytes();
-      
-      final prompt = TextPart('''
-Describe what you see in this image in 1-2 short sentences for a blind person.
-Focus on obstacles, hazards, walking path, and important objects.
-''');
-      
-      final imagePart = InlineDataPart('image/jpeg', imageBytes);
-      
-      final response = await _model!.generateContent([
-        Content.multi([prompt, imagePart])
-      ]);
-      
-      final text = response.text ?? 'Could not describe the scene.';
-      
-      debugPrint('🤖 Gemini response: $text');
-      return text;
-    } catch (e) {
-      debugPrint('❌ Gemini error: $e');
-      return 'Error describing scene: ${e.toString()}';
-    } finally {
-      _isProcessing = false;
-    }
-  }
-
-  /// Ask a question about what the camera sees (Live mode)
-  Future<String> askQuestion(String imagePath, String question) async {
-    if (!_isInitialized || _model == null) {
-      return 'Gemini AI is not initialized.';
-    }
-    
-    if (_isProcessing) {
-      return 'Please wait...';
-    }
-    
-    _isProcessing = true;
-    
-    try {
-      final imageFile = File(imagePath);
-      final imageBytes = await imageFile.readAsBytes();
-      
-      final prompt = TextPart('Question from blind user: $question');
-      final imagePart = InlineDataPart('image/jpeg', imageBytes);
-      
-      GenerateContentResponse response;
-      
-      if (_isLiveMode && _chat != null) {
-        // Use chat session for context
-        response = await _chat!.sendMessage(
-          Content.multi([prompt, imagePart])
-        );
-      } else {
-        // Single request
-        response = await _model!.generateContent([
-          Content.multi([prompt, imagePart])
-        ]);
+      // Build system context from database
+      String systemContext = '';
+      if (databaseContext != null && databaseContext.isNotEmpty) {
+        systemContext = _buildSystemContext(databaseContext);
       }
       
-      final text = response.text ?? 'I could not understand the scene.';
+      // Combine system context with user message
+      final fullPrompt = systemContext.isNotEmpty 
+          ? '$systemContext\n\nUser message: ${text.isEmpty ? "Describe this image" : text}'
+          : (text.isEmpty ? "Describe this image" : text);
       
-      debugPrint('🤖 Gemini Q&A: $text');
-      return text;
+      final promptParts = <Part>[TextPart(fullPrompt)];
+
+      if (imageBytes != null) {
+        promptParts.add(InlineDataPart(imageMimeType ?? 'image/jpeg', imageBytes));
+      }
+
+      final content = [Content.multi(promptParts)];
+      final response = await _model.generateContent(content);
+
+      return response.text ?? "I could not understand that.";
     } catch (e) {
-      debugPrint('❌ Gemini error: $e');
-      return 'Error: ${e.toString()}';
-    } finally {
-      _isProcessing = false;
+      print("Gemini Firebase Error: $e");
+      return "Error communicating with AI service: $e";
+    }
+  }
+  
+  /// Build system context string from database context.
+  String _buildSystemContext(Map<String, dynamic> context) {
+    final buffer = StringBuffer();
+    buffer.writeln('You are a helpful accessibility assistant. Use the following context to provide personalized responses:');
+    buffer.writeln();
+    
+    // Accessibility settings
+    final settingsValue = context['accessibilitySettings'];
+    if (settingsValue != null && settingsValue is Map) {
+      buffer.writeln('User Accessibility Preferences:');
+      if (settingsValue['visualImpairment'] == true) {
+        buffer.writeln('- User has visual impairment. Provide detailed audio descriptions.');
+      }
+      if (settingsValue['hearingImpairment'] == true) {
+        buffer.writeln('- User has hearing impairment. Avoid audio-only instructions.');
+      }
+      if (settingsValue['mobilityImpairment'] == true) {
+        buffer.writeln('- User has mobility impairment. Prioritize accessible routes and facilities.');
+      }
+      buffer.writeln();
+    }
+    
+    // Recent conversations
+    final convosValue = context['recentConversations'];
+    if (convosValue != null && convosValue is List) {
+      final convos = convosValue;
+      if (convos.isNotEmpty) {
+        buffer.writeln('Recent conversation context:');
+        for (final conv in convos.take(5)) {
+          if (conv is Map) {
+            final role = conv['role']?.toString() ?? 'unknown';
+            final content = conv['content']?.toString() ?? '';
+            buffer.writeln('- $role: $content');
+          }
+        }
+        buffer.writeln();
+      }
+    }
+    
+    // Nearby POIs
+    final poisValue = context['nearbyPOIs'];
+    if (poisValue != null && poisValue is List) {
+      final pois = poisValue;
+      if (pois.isNotEmpty) {
+        buffer.writeln('Nearby accessible locations:');
+        for (final poi in pois.take(5)) {
+          if (poi is Map) {
+            buffer.writeln('- ${poi['name']} (${poi['type']}): ${poi['description']}');
+            final safetyNotes = poi['safetyNotes'];
+            if (safetyNotes != null && safetyNotes.toString().isNotEmpty) {
+              buffer.writeln('  Safety: $safetyNotes');
+            }
+          }
+        }
+        buffer.writeln();
+      }
+    }
+    
+    return buffer.toString();
+  }
+
+  // ========== Live API Methods ==========
+
+  /// Connect to the Live API session.
+  Future<void> connectLive() async {
+    if (_liveModel == null) {
+      initializeLiveModel();
+    }
+    
+    if (_session != null) {
+      await disconnectLive();
+    }
+
+    _session = await _liveModel!.connect();
+    _isLiveSessionActive = true;
+  }
+
+  /// Disconnect from the Live API session.
+  Future<void> disconnectLive() async {
+    if (_session != null) {
+      await _session!.close();
+      _session = null;
+      _isLiveSessionActive = false;
     }
   }
 
-  /// Quick text-only question (for follow-up questions without new image)
-  Future<String> askFollowUp(String question) async {
-    if (!_isLiveMode || _chat == null) {
-      return 'Please start live mode first.';
+  /// Send audio data in real-time during a live session.
+  Future<void> sendAudioRealtime(Uint8List audioData) async {
+    if (_session == null || !_isLiveSessionActive) {
+      throw Exception('Live session not active. Call connectLive() first.');
     }
     
-    if (_isProcessing) {
-      return 'Please wait...';
-    }
-    
-    _isProcessing = true;
-    
-    try {
-      final response = await _chat!.sendMessage(
-        Content.text(question)
-      );
-      
-      return response.text ?? 'I did not understand.';
-    } catch (e) {
-      debugPrint('❌ Gemini error: $e');
-      return 'Error: ${e.toString()}';
-    } finally {
-      _isProcessing = false;
-    }
+    await _session!.sendAudioRealtime(InlineDataPart('audio/pcm', audioData));
   }
 
-  void dispose() {
-    stopLiveMode();
+  /// Start streaming audio from a stream of audio data.
+  Future<void> sendMediaStream(Stream<InlineDataPart> mediaStream) async {
+    if (_session == null || !_isLiveSessionActive) {
+      throw Exception('Live session not active. Call connectLive() first.');
+    }
+    
+    await _session!.sendMediaStream(mediaStream);
   }
+
+  /// Get the stream of responses from the Live API.
+  Stream<LiveServerResponse>? get liveResponses {
+    return _session?.receive();
+  }
+
+  /// Check if live session is active.
+  bool get isLiveSessionActive => _isLiveSessionActive;
+
+  /// Get the current session (for advanced usage).
+  LiveSession? get session => _session;
 }
