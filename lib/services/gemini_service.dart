@@ -29,9 +29,26 @@ class GeminiService {
   }
 
   /// Send a text/image message using the normal (non-live) API.
-  Future<String> sendMessage(String text, {Uint8List? imageBytes, String? imageMimeType}) async {
+  /// Optionally include database context for contextual responses.
+  Future<String> sendMessage(
+    String text, {
+    Uint8List? imageBytes,
+    String? imageMimeType,
+    Map<String, dynamic>? databaseContext,
+  }) async {
     try {
-      final promptParts = <Part>[TextPart(text.isEmpty ? "Describe this image" : text)];
+      // Build system context from database
+      String systemContext = '';
+      if (databaseContext != null && databaseContext.isNotEmpty) {
+        systemContext = _buildSystemContext(databaseContext);
+      }
+      
+      // Combine system context with user message
+      final fullPrompt = systemContext.isNotEmpty 
+          ? '$systemContext\n\nUser message: ${text.isEmpty ? "Describe this image" : text}'
+          : (text.isEmpty ? "Describe this image" : text);
+      
+      final promptParts = <Part>[TextPart(fullPrompt)];
 
       if (imageBytes != null) {
         promptParts.add(InlineDataPart(imageMimeType ?? 'image/jpeg', imageBytes));
@@ -45,6 +62,67 @@ class GeminiService {
       print("Gemini Firebase Error: $e");
       return "Error communicating with AI service: $e";
     }
+  }
+  
+  /// Build system context string from database context.
+  String _buildSystemContext(Map<String, dynamic> context) {
+    final buffer = StringBuffer();
+    buffer.writeln('You are a helpful accessibility assistant. Use the following context to provide personalized responses:');
+    buffer.writeln();
+    
+    // Accessibility settings
+    final settingsValue = context['accessibilitySettings'];
+    if (settingsValue != null && settingsValue is Map) {
+      buffer.writeln('User Accessibility Preferences:');
+      if (settingsValue['visualImpairment'] == true) {
+        buffer.writeln('- User has visual impairment. Provide detailed audio descriptions.');
+      }
+      if (settingsValue['hearingImpairment'] == true) {
+        buffer.writeln('- User has hearing impairment. Avoid audio-only instructions.');
+      }
+      if (settingsValue['mobilityImpairment'] == true) {
+        buffer.writeln('- User has mobility impairment. Prioritize accessible routes and facilities.');
+      }
+      buffer.writeln();
+    }
+    
+    // Recent conversations
+    final convosValue = context['recentConversations'];
+    if (convosValue != null && convosValue is List) {
+      final convos = convosValue;
+      if (convos.isNotEmpty) {
+        buffer.writeln('Recent conversation context:');
+        for (final conv in convos.take(5)) {
+          if (conv is Map) {
+            final role = conv['role']?.toString() ?? 'unknown';
+            final content = conv['content']?.toString() ?? '';
+            buffer.writeln('- $role: $content');
+          }
+        }
+        buffer.writeln();
+      }
+    }
+    
+    // Nearby POIs
+    final poisValue = context['nearbyPOIs'];
+    if (poisValue != null && poisValue is List) {
+      final pois = poisValue;
+      if (pois.isNotEmpty) {
+        buffer.writeln('Nearby accessible locations:');
+        for (final poi in pois.take(5)) {
+          if (poi is Map) {
+            buffer.writeln('- ${poi['name']} (${poi['type']}): ${poi['description']}');
+            final safetyNotes = poi['safetyNotes'];
+            if (safetyNotes != null && safetyNotes.toString().isNotEmpty) {
+              buffer.writeln('  Safety: $safetyNotes');
+            }
+          }
+        }
+        buffer.writeln();
+      }
+    }
+    
+    return buffer.toString();
   }
 
   // ========== Live API Methods ==========

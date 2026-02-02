@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/gemini_service.dart';
+import '../services/database_service.dart';
 import '../utils/audio_input.dart';
 import '../utils/audio_output.dart';
 
@@ -17,6 +19,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final GeminiService _geminiService = GeminiService();
+  final DatabaseService _databaseService = DatabaseService();
   final FlutterTts _flutterTts = FlutterTts();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -25,6 +28,9 @@ class _ChatScreenState extends State<ChatScreen> {
   // Audio utilities for Live mode
   final AudioInput _audioInput = AudioInput();
   final AudioOutput _audioOutput = AudioOutput();
+  
+  // User identification (in production, use Firebase Auth)
+  final String _userId = 'demo_user';
 
   // Stores chat messages: {role: 'user'|'model', text: '...', imageBytes: Uint8List?}
   final List<Map<String, dynamic>> _messages = [];
@@ -39,6 +45,12 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isAiSpeaking = false; // Track when AI is responding with audio
   StreamSubscription<dynamic>? _responseSubscription;
 
+  // Transcription toggle
+  bool _transcriptionEnabled = true;
+  
+  // Chat history from database
+  List<Map<String, dynamic>> _chatHistory = [];
+
   // Pending image for attach-then-type feature
   XFile? _pendingImage;
   Uint8List? _pendingImageBytes;
@@ -48,6 +60,25 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _initTts();
     _initAudio();
+    _initDatabase();
+  }
+  
+  Future<void> _initDatabase() async {
+    // Cleanup old conversations on app start
+    await _databaseService.cleanupOldConversations(_userId);
+    // Load chat history
+    await _loadChatHistory();
+  }
+  
+  Future<void> _loadChatHistory() async {
+    try {
+      final history = await _databaseService.getRecentConversations(_userId);
+      setState(() {
+        _chatHistory = history;
+      });
+    } catch (e) {
+      debugPrint('Error loading chat history: $e');
+    }
   }
 
   Future<void> _initTts() async {
@@ -94,12 +125,13 @@ class _ChatScreenState extends State<ChatScreen> {
     // Prepare image bytes
     Uint8List? imageBytes = _pendingImageBytes;
     String? imageMimeType = _pendingImage?.mimeType;
+    final messageContent = userText.isEmpty ? "Describe this image" : userText;
 
     // Add user message to chat with image thumbnail if available
     setState(() {
       _messages.add({
         'role': 'user',
-        'text': userText.isEmpty ? "Describe this image" : userText,
+        'text': messageContent,
         'imageBytes': imageBytes,
       });
       _isLoading = true;
@@ -109,13 +141,46 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
     _textController.clear();
+    
+    // Save user message to database
+    await _databaseService.saveMessage(
+      _userId, 
+      'user', 
+      messageContent, 
+      hasImage: imageBytes != null,
+    );
 
     try {
+      // Get user's location for POI context (optional)
+      double? latitude;
+      double? longitude;
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+        );
+        latitude = position.latitude;
+        longitude = position.longitude;
+      } catch (e) {
+        // Location not available, continue without it
+        debugPrint('Location not available: $e');
+      }
+      
+      // Build context from database
+      final databaseContext = await _databaseService.buildContextForAI(
+        _userId,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      
       final response = await _geminiService.sendMessage(
-        userText.isEmpty ? "Describe this image" : userText, 
+        messageContent, 
         imageBytes: imageBytes, 
         imageMimeType: imageMimeType,
+        databaseContext: databaseContext,
       );
+      
+      // Save assistant response to database
+      await _databaseService.saveMessage(_userId, 'assistant', response);
       
       setState(() {
         _messages.add({
@@ -381,7 +446,35 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Visual Assistant"),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            tooltip: 'Settings & History',
+          ),
+        ),
         actions: [
+          // Transcription Toggle
+          IconButton(
+            icon: Icon(
+              _transcriptionEnabled ? Icons.subtitles : Icons.subtitles_off,
+              color: _transcriptionEnabled ? Colors.greenAccent : Colors.grey,
+            ),
+            onPressed: () {
+              setState(() {
+                _transcriptionEnabled = !_transcriptionEnabled;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(_transcriptionEnabled 
+                      ? 'Transcription enabled' 
+                      : 'Transcription disabled'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+            tooltip: 'Toggle Transcription',
+          ),
           // Live Mode Toggle
           Row(
             children: [
@@ -418,6 +511,159 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
         ],
+      ),
+      drawer: Drawer(
+        backgroundColor: Colors.grey.shade900,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.black,
+                child: const Row(
+                  children: [
+                    Icon(Icons.settings, color: Colors.yellowAccent, size: 28),
+                    SizedBox(width: 12),
+                    Text(
+                      'Settings & History',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Transcription Toggle
+              SwitchListTile(
+                title: const Text('Transcription', style: TextStyle(color: Colors.white)),
+                subtitle: Text(
+                  _transcriptionEnabled ? 'Show text transcripts' : 'Audio only',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                value: _transcriptionEnabled,
+                onChanged: (value) {
+                  setState(() {
+                    _transcriptionEnabled = value;
+                  });
+                },
+                activeColor: Colors.greenAccent,
+                secondary: Icon(
+                  _transcriptionEnabled ? Icons.subtitles : Icons.subtitles_off,
+                  color: _transcriptionEnabled ? Colors.greenAccent : Colors.grey,
+                ),
+              ),
+              
+              const Divider(color: Colors.grey),
+              
+              // Chat History Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Chat History (3 days)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.yellowAccent,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white70),
+                      onPressed: _loadChatHistory,
+                      tooltip: 'Refresh',
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Chat History List
+              Expanded(
+                child: _chatHistory.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No chat history yet',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _chatHistory.length,
+                        itemBuilder: (context, index) {
+                          final msg = _chatHistory[index];
+                          final role = msg['role']?.toString() ?? 'unknown';
+                          final content = msg['content']?.toString() ?? '';
+                          final timestamp = msg['timestamp'];
+                          final isUser = role == 'user';
+                          
+                          // Format timestamp
+                          String timeStr = '';
+                          if (timestamp is num) {
+                            final date = DateTime.fromMillisecondsSinceEpoch(timestamp.toInt());
+                            timeStr = '${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                          }
+                          
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: isUser ? Colors.cyanAccent : Colors.yellowAccent,
+                              radius: 16,
+                              child: Icon(
+                                isUser ? Icons.person : Icons.smart_toy,
+                                size: 18,
+                                color: Colors.black,
+                              ),
+                            ),
+                            title: Text(
+                              content.length > 50 ? '${content.substring(0, 50)}...' : content,
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            subtitle: Text(
+                              timeStr,
+                              style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            ),
+                            onTap: () {
+                              // Load this message into chat
+                              setState(() {
+                                _messages.add({
+                                  'role': role,
+                                  'text': content,
+                                });
+                              });
+                              Navigator.pop(context);
+                              _scrollToBottom();
+                            },
+                          );
+                        },
+                      ),
+              ),
+              
+              // Clear History Button
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _messages.clear();
+                    });
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Clear Current Chat'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withValues(alpha: 0.3),
+                    foregroundColor: Colors.redAccent,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       body: Column(
         children: [

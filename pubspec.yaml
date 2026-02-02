@@ -41,6 +41,8 @@ dependencies:
   path_provider: ^2.1.5
   record: ^6.1.2
   firebase_ai: ^3.7.0
+  firebase_database: ^12.1.2
+  geolocator: ^13.0.2
   flutter_pcm_sound: ^3.3.3
 
 dev_dependencies:
