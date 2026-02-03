@@ -31,6 +31,9 @@ class _ChatScreenState extends State<ChatScreen> {
   
   // User identification (in production, use Firebase Auth)
   final String _userId = 'demo_user';
+  
+  // Current conversation topic/session ID
+  String _currentTopicId = '';
 
   // Stores chat messages: {role: 'user'|'model', text: '...', imageBytes: Uint8List?}
   final List<Map<String, dynamic>> _messages = [];
@@ -45,8 +48,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isAiSpeaking = false; // Track when AI is responding with audio
   StreamSubscription<dynamic>? _responseSubscription;
 
-  // Transcription toggle
-  bool _transcriptionEnabled = true;
+  // Text-to-Speech toggle
+  bool _ttsEnabled = true;
   
   // Chat history from database
   List<Map<String, dynamic>> _chatHistory = [];
@@ -58,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _currentTopicId = DateTime.now().millisecondsSinceEpoch.toString();
     _initTts();
     _initAudio();
     _initDatabase();
@@ -72,21 +76,82 @@ class _ChatScreenState extends State<ChatScreen> {
   
   Future<void> _loadChatHistory() async {
     try {
-      final history = await _databaseService.getRecentConversations(_userId);
+      // Load topic previews instead of individual messages
+      final topics = await _databaseService.getTopicPreviews(_userId);
       setState(() {
-        _chatHistory = history;
+        _chatHistory = topics;
       });
     } catch (e) {
       debugPrint('Error loading chat history: $e');
     }
   }
+  
+  /// Load all messages for a specific topic
+  Future<void> _loadTopicMessages(String topicId) async {
+    try {
+      final grouped = await _databaseService.getConversationsGroupedByTopic(_userId);
+      final topicMessages = grouped[topicId] ?? [];
+      
+      setState(() {
+        _messages.clear();
+        for (final msg in topicMessages) {
+          _messages.add({
+            'role': msg['role'] == 'assistant' ? 'model' : msg['role'],
+            'text': msg['content']?.toString() ?? '',
+          });
+        }
+        // Switch to this topic for new messages
+        _currentTopicId = topicId;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Error loading topic messages: $e');
+    }
+  }
 
-  Future<void> _initTts() async {
-    await _flutterTts.awaitSpeakCompletion(true);
-    await _flutterTts.setLanguage("en-US");
-    await _flutterTts.setSpeechRate(0.5);
-    await _flutterTts.setPitch(1.0);
-    _ttsReady = true;
+  Future<void> _initTts({int retryCount = 0}) async {
+    try {
+      // Wait for TTS engine to be available
+      var engines = await _flutterTts.getEngines;
+      
+      // If no engines found and haven't retried too many times, wait and retry
+      if ((engines == null || (engines as List).isEmpty) && retryCount < 3) {
+        debugPrint('TTS: No engines available, retrying in 1 second... (attempt ${retryCount + 1}/3)');
+        await Future.delayed(const Duration(seconds: 1));
+        return _initTts(retryCount: retryCount + 1);
+      }
+      
+      if (engines == null || (engines as List).isEmpty) {
+        debugPrint('TTS: No engines available after retries. Please install Google TTS from Play Store.');
+        return;
+      }
+      debugPrint('TTS: Available engines: $engines');
+      
+      // Check if language is available
+      final languages = await _flutterTts.getLanguages;
+      debugPrint('TTS: Available languages: ${(languages as List).take(5)}...');
+      
+      // Set up TTS with proper error handling
+      await _flutterTts.setLanguage('en-US');
+      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setPitch(1.0);
+      await _flutterTts.awaitSpeakCompletion(true);
+      
+      // Set completion handler
+      _flutterTts.setCompletionHandler(() {
+        debugPrint('TTS: Speech completed');
+      });
+      
+      _flutterTts.setErrorHandler((msg) {
+        debugPrint('TTS Error: $msg');
+      });
+      
+      _ttsReady = true;
+      debugPrint('TTS: Initialization complete');
+    } catch (e) {
+      debugPrint('TTS initialization error: $e');
+      _ttsReady = false;
+    }
   }
 
   Future<void> _initAudio() async {
@@ -148,6 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'user', 
       messageContent, 
       hasImage: imageBytes != null,
+      topicId: _currentTopicId,
     );
 
     try {
@@ -180,7 +246,12 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       
       // Save assistant response to database
-      await _databaseService.saveMessage(_userId, 'assistant', response);
+      await _databaseService.saveMessage(
+        _userId, 
+        'assistant', 
+        response,
+        topicId: _currentTopicId,
+      );
       
       setState(() {
         _messages.add({
@@ -201,11 +272,28 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _speak(String text) async {
-    if (!_ttsReady) {
-      debugPrint("TTS not ready yet, skipping speak.");
+    if (!_ttsEnabled) {
+      debugPrint('TTS: Text-to-Speech disabled, skipping speech');
       return;
     }
-    await _flutterTts.speak(text);
+    
+    if (!_ttsReady) {
+      debugPrint('TTS: Not ready yet, attempting re-initialization...');
+      await _initTts();
+      if (!_ttsReady) {
+        debugPrint('TTS: Still not ready after re-init, skipping');
+        return;
+      }
+    }
+    
+    try {
+      final result = await _flutterTts.speak(text);
+      if (result != 1) {
+        debugPrint('TTS: speak() returned $result (expected 1)');
+      }
+    } catch (e) {
+      debugPrint('TTS speak error: $e');
+    }
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -454,26 +542,26 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         actions: [
-          // Transcription Toggle
+          // Text-to-Speech Toggle
           IconButton(
             icon: Icon(
-              _transcriptionEnabled ? Icons.subtitles : Icons.subtitles_off,
-              color: _transcriptionEnabled ? Colors.greenAccent : Colors.grey,
+              _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+              color: _ttsEnabled ? Colors.greenAccent : Colors.grey,
             ),
             onPressed: () {
               setState(() {
-                _transcriptionEnabled = !_transcriptionEnabled;
+                _ttsEnabled = !_ttsEnabled;
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(_transcriptionEnabled 
-                      ? 'Transcription enabled' 
-                      : 'Transcription disabled'),
+                  content: Text(_ttsEnabled 
+                      ? 'Text-to-Speech enabled' 
+                      : 'Text-to-Speech disabled'),
                   duration: const Duration(seconds: 1),
                 ),
               );
             },
-            tooltip: 'Toggle Transcription',
+            tooltip: 'Toggle Text-to-Speech',
           ),
           // Live Mode Toggle
           Row(
@@ -538,23 +626,23 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               
-              // Transcription Toggle
+              // Text-to-Speech Toggle
               SwitchListTile(
-                title: const Text('Transcription', style: TextStyle(color: Colors.white)),
+                title: const Text('Text-to-Speech', style: TextStyle(color: Colors.white)),
                 subtitle: Text(
-                  _transcriptionEnabled ? 'Show text transcripts' : 'Audio only',
+                  _ttsEnabled ? 'AI responses will be spoken' : 'Silent mode',
                   style: const TextStyle(color: Colors.white70),
                 ),
-                value: _transcriptionEnabled,
+                value: _ttsEnabled,
                 onChanged: (value) {
                   setState(() {
-                    _transcriptionEnabled = value;
+                    _ttsEnabled = value;
                   });
                 },
                 activeColor: Colors.greenAccent,
                 secondary: Icon(
-                  _transcriptionEnabled ? Icons.subtitles : Icons.subtitles_off,
-                  color: _transcriptionEnabled ? Colors.greenAccent : Colors.grey,
+                  _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+                  color: _ttsEnabled ? Colors.greenAccent : Colors.grey,
                 ),
               ),
               
@@ -583,60 +671,73 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               
-              // Chat History List
+              // Chat History List (Grouped by Topic)
               Expanded(
                 child: _chatHistory.isEmpty
                     ? const Center(
                         child: Text(
-                          'No chat history yet',
+                          'No conversations yet',
                           style: TextStyle(color: Colors.white54),
                         ),
                       )
                     : ListView.builder(
                         itemCount: _chatHistory.length,
                         itemBuilder: (context, index) {
-                          final msg = _chatHistory[index];
-                          final role = msg['role']?.toString() ?? 'unknown';
-                          final content = msg['content']?.toString() ?? '';
-                          final timestamp = msg['timestamp'];
-                          final isUser = role == 'user';
+                          final topic = _chatHistory[index];
+                          final topicId = topic['topicId']?.toString() ?? '';
+                          final messageCount = topic['messageCount'] ?? 0;
+                          final firstMessage = topic['firstMessage']?.toString() ?? 'New conversation';
+                          final timestamp = topic['timestamp'];
                           
                           // Format timestamp
                           String timeStr = '';
                           if (timestamp is num) {
                             final date = DateTime.fromMillisecondsSinceEpoch(timestamp.toInt());
-                            timeStr = '${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                            final now = DateTime.now();
+                            final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+                            if (isToday) {
+                              timeStr = 'Today ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                            } else {
+                              timeStr = '${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                            }
                           }
                           
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: isUser ? Colors.cyanAccent : Colors.yellowAccent,
-                              radius: 16,
-                              child: Icon(
-                                isUser ? Icons.person : Icons.smart_toy,
-                                size: 18,
-                                color: Colors.black,
+                          // Create a preview title from first message
+                          String title = firstMessage.length > 40 
+                              ? '${firstMessage.substring(0, 40)}...' 
+                              : firstMessage;
+                          
+                          return Card(
+                            color: Colors.grey.shade800,
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.cyanAccent.withValues(alpha: 0.2),
+                                child: const Icon(
+                                  Icons.chat_bubble_outline,
+                                  color: Colors.cyanAccent,
+                                  size: 20,
+                                ),
                               ),
+                              title: Text(
+                                title,
+                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                '$messageCount messages • $timeStr',
+                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              ),
+                              trailing: const Icon(
+                                Icons.chevron_right,
+                                color: Colors.white54,
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _loadTopicMessages(topicId);
+                              },
                             ),
-                            title: Text(
-                              content.length > 50 ? '${content.substring(0, 50)}...' : content,
-                              style: const TextStyle(color: Colors.white, fontSize: 14),
-                            ),
-                            subtitle: Text(
-                              timeStr,
-                              style: const TextStyle(color: Colors.white54, fontSize: 12),
-                            ),
-                            onTap: () {
-                              // Load this message into chat
-                              setState(() {
-                                _messages.add({
-                                  'role': role,
-                                  'text': content,
-                                });
-                              });
-                              Navigator.pop(context);
-                              _scrollToBottom();
-                            },
                           );
                         },
                       ),
