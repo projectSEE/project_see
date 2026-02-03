@@ -1,4 +1,4 @@
-name: Android CI/CD
+name: Flutter Android CI/CD
 
 on:
   push:
@@ -21,28 +21,40 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle  # <--- This automatically enables Caching!
 
-      # 3. Grant Execute Permission
-      - name: Grant execute permission for gradlew
-        run: chmod +x android/gradlew
+      # 3. Set up Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
 
-      # 4. Run Unit Tests (Stop here if code is broken)
+      # 4. Get Flutter dependencies
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 5. Run Tests
       - name: Run Tests
-        working-directory: android
-        run: ./gradlew testDebugUnitTest
+        run: flutter test
 
-      # 5. Build the APK
+      # 6. Build the APK
       - name: Build Release APK
-        working-directory: android
-        run: ./gradlew assembleRelease
+        run: flutter build apk --release
 
-      # 6. Upload to Firebase (Only runs on push to development or feature/ai_chatbot, not PRs)
+      # 7. Upload APK as artifact (for download)
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      # 8. Upload to Firebase (Only runs on push to development or feature/ai_chatbot, not PRs)
       - name: Upload to Firebase App Distribution
         if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/feature/ai_chatbot')
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           token: ${{ secrets.FIREBASE_TOKEN }}
-          groups: beta-testers # You must create this group in Firebase Console first
-          file: android/app/build/outputs/apk/release/app-release.apk
+          groups: beta-testers
+          file: build/app/outputs/flutter-apk/app-release.apk
