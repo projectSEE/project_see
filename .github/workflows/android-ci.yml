@@ -1,6 +1,7 @@
 name: Flutter Android CI/CD
 
 on:
+  workflow_dispatch:  # Allow manual triggering
   push:
     branches: [ "development", "feature/**" ]
   pull_request:
