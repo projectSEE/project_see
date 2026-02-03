@@ -57,6 +57,7 @@ class DatabaseService {
         'content': value['content']?.toString() ?? '',
         'timestamp': value['timestamp'] is num ? value['timestamp'] : 0,
         'hasImage': value['hasImage'] == true,
+        'topicId': value['topicId']?.toString() ?? 'unknown',
       };
       return conv;
     } catch (e) {
@@ -122,16 +123,73 @@ class DatabaseService {
   
   // ==================== Conversation History ====================
   
-  /// Get recent conversations (within last 3 days).
+  /// Get conversations grouped by topic ID.
+  /// Returns a map of topicId -> list of messages in that topic.
+  Future<Map<String, List<Map<String, dynamic>>>> getConversationsGroupedByTopic(String userId) async {
+    final conversations = await getRecentConversations(userId);
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    
+    for (final conv in conversations) {
+      final topicId = conv['topicId']?.toString() ?? 'unknown';
+      grouped.putIfAbsent(topicId, () => []).add(conv);
+    }
+    
+    return grouped;
+  }
+  
+  /// Get the first message preview for each topic.
+  /// Useful for showing a list of conversation topics in the drawer.
+  Future<List<Map<String, dynamic>>> getTopicPreviews(String userId) async {
+    final grouped = await getConversationsGroupedByTopic(userId);
+    final previews = <Map<String, dynamic>>[];
+    
+    for (final entry in grouped.entries) {
+      if (entry.value.isNotEmpty) {
+        // Sort by timestamp to get chronological order
+        entry.value.sort((a, b) {
+          final aTime = a['timestamp'];
+          final bTime = b['timestamp'];
+          if (aTime is num && bTime is num) {
+            return aTime.compareTo(bTime);
+          }
+          return 0;
+        });
+        
+        final firstMessage = entry.value.first;
+        final lastMessage = entry.value.last;
+        previews.add({
+          'topicId': entry.key,
+          'messageCount': entry.value.length,
+          'firstMessage': firstMessage['content']?.toString() ?? '',
+          'lastMessage': lastMessage['content']?.toString() ?? '',
+          'timestamp': lastMessage['timestamp'] ?? 0,
+        });
+      }
+    }
+    
+    // Sort by timestamp descending (most recent first)
+    previews.sort((a, b) {
+      final aTime = a['timestamp'];
+      final bTime = b['timestamp'];
+      if (aTime is num && bTime is num) {
+        return bTime.compareTo(aTime);
+      }
+      return 0;
+    });
+    
+    return previews;
+  }
+
+  /// Get recent conversations (within last 5 days).
   /// Completely defensive - handles any data format from Firebase.
   Future<List<Map<String, dynamic>>> getRecentConversations(String userId) async {
     try {
-      final threeDaysAgo = DateTime.now().subtract(const Duration(days: 3)).millisecondsSinceEpoch;
+      final fiveDaysAgo = DateTime.now().subtract(const Duration(days: 5)).millisecondsSinceEpoch;
       
       final snapshot = await _database
           .ref('users/$userId/conversations')
           .orderByChild('timestamp')
-          .startAt(threeDaysAgo)
+          .startAt(fiveDaysAgo)
           .get();
       
       if (!snapshot.exists) {
@@ -211,8 +269,15 @@ class DatabaseService {
     }
   }
   
-  /// Save a new message to conversation history.
-  Future<void> saveMessage(String userId, String role, String content, {bool hasImage = false}) async {
+  /// Save a new message to conversation history with topic grouping.
+  /// topicId groups related messages together in a conversation session.
+  Future<void> saveMessage(
+    String userId, 
+    String role, 
+    String content, {
+    bool hasImage = false,
+    String? topicId,
+  }) async {
     try {
       final ref = _database.ref('users/$userId/conversations').push();
       await ref.set({
@@ -220,22 +285,23 @@ class DatabaseService {
         'content': content,
         'timestamp': ServerValue.timestamp,
         'hasImage': hasImage,
+        'topicId': topicId ?? DateTime.now().millisecondsSinceEpoch.toString(),
       });
     } catch (e) {
       print('Error saving message: $e');
     }
   }
   
-  /// Cleanup old conversations (older than 3 days).
+  /// Cleanup old conversations (older than 5 days).
   /// Completely defensive - handles any data format from Firebase.
   Future<void> cleanupOldConversations(String userId) async {
     try {
-      final threeDaysAgo = DateTime.now().subtract(const Duration(days: 3)).millisecondsSinceEpoch;
+      final fiveDaysAgo = DateTime.now().subtract(const Duration(days: 5)).millisecondsSinceEpoch;
       
       final snapshot = await _database
           .ref('users/$userId/conversations')
           .orderByChild('timestamp')
-          .endAt(threeDaysAgo)
+          .endAt(fiveDaysAgo)
           .get();
       
       if (!snapshot.exists) {
