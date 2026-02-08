@@ -156,7 +156,7 @@ class GeminiService {
       throw Exception('Live session not active. Call connectLive() first.');
     }
     
-    await _session!.sendAudioRealtime(InlineDataPart('audio/pcm', audioData));
+    await _session!.sendMediaChunks(mediaChunks: [InlineDataPart('audio/pcm', audioData)]);
   }
 
   /// Start streaming audio from a stream of audio data.

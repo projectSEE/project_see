@@ -6,9 +6,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/gemini_service.dart';
-import '../services/database_service.dart';
+import '../services/firestore_service.dart';
 import '../utils/audio_input.dart';
 import '../utils/audio_output.dart';
+import '../utils/conversation_exporter.dart';
+import '../theme/theme.dart';
+import '../widgets/widgets.dart';
+import '../main.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -19,7 +23,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final GeminiService _geminiService = GeminiService();
-  final DatabaseService _databaseService = DatabaseService();
+  final FirestoreService _firestoreService = FirestoreService();
   final FlutterTts _flutterTts = FlutterTts();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -58,6 +62,9 @@ class _ChatScreenState extends State<ChatScreen> {
   XFile? _pendingImage;
   Uint8List? _pendingImageBytes;
 
+  // Search query for filtering history
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -69,7 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
   
   Future<void> _initDatabase() async {
     // Cleanup old conversations on app start
-    await _databaseService.cleanupOldConversations(_userId);
+    await _firestoreService.cleanupOldConversations(_userId);
     // Load chat history
     await _loadChatHistory();
   }
@@ -77,7 +84,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadChatHistory() async {
     try {
       // Load topic previews instead of individual messages
-      final topics = await _databaseService.getTopicPreviews(_userId);
+      final topics = await _firestoreService.getTopicPreviews(_userId);
       setState(() {
         _chatHistory = topics;
       });
@@ -89,7 +96,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Load all messages for a specific topic
   Future<void> _loadTopicMessages(String topicId) async {
     try {
-      final grouped = await _databaseService.getConversationsGroupedByTopic(_userId);
+      final grouped = await _firestoreService.getConversationsGroupedByTopic(_userId);
       final topicMessages = grouped[topicId] ?? [];
       
       setState(() {
@@ -208,7 +215,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.clear();
     
     // Save user message to database
-    await _databaseService.saveMessage(
+    await _firestoreService.saveMessage(
       _userId, 
       'user', 
       messageContent, 
@@ -232,7 +239,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       
       // Build context from database
-      final databaseContext = await _databaseService.buildContextForAI(
+      final databaseContext = await _firestoreService.buildContextForAI(
         _userId,
         latitude: latitude,
         longitude: longitude,
@@ -246,7 +253,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       
       // Save assistant response to database
-      await _databaseService.saveMessage(
+      await _firestoreService.saveMessage(
         _userId, 
         'assistant', 
         response,
@@ -294,6 +301,41 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('TTS speak error: $e');
     }
+  }
+
+  /// Delete a message at the given index
+  void _deleteMessage(int index) {
+    if (index >= 0 && index < _messages.length) {
+      setState(() {
+        _messages.removeAt(index);
+      });
+    }
+  }
+
+  /// Show image in fullscreen viewer
+  void _showImageFullscreen(Uint8List imageBytes) {
+    ImageViewerDialog.show(context, imageBytes);
+  }
+
+  /// Export conversation as PDF
+  Future<void> _shareConversation() async {
+    if (_messages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No messages to export')),
+      );
+      return;
+    }
+    await ConversationExporter.exportAsPdf(_messages);
+  }
+
+  /// Filter chat history by search query
+  List<Map<String, dynamic>> get _filteredChatHistory {
+    if (_searchQuery.isEmpty) return _chatHistory;
+    final lowerQuery = _searchQuery.toLowerCase();
+    return _chatHistory.where((topic) {
+      final firstMessage = topic['firstMessage']?.toString().toLowerCase() ?? '';
+      return firstMessage.contains(lowerQuery);
+    }).toList();
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -450,26 +492,8 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
 
-      // Handle transcriptions if available
-      if (message.inputTranscription?.text != null) {
-        setState(() {
-          _messages.add({
-            'role': 'user',
-            'text': '🎤 ${message.inputTranscription!.text}',
-          });
-        });
-        _scrollToBottom();
-      }
-
-      if (message.outputTranscription?.text != null) {
-        setState(() {
-          _messages.add({
-            'role': 'model',
-            'text': message.outputTranscription!.text!,
-          });
-        });
-        _scrollToBottom();
-      }
+      // Note: Transcription features require firebase_ai 3.x+
+      // If using newer version, uncomment the transcription handling below
     }
   }
 
@@ -546,17 +570,21 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: Icon(
               _ttsEnabled ? Icons.volume_up : Icons.volume_off,
-              color: _ttsEnabled ? Colors.greenAccent : Colors.grey,
+              color: _ttsEnabled ? AppColors.liveActive : AppColors.textMuted,
             ),
-            onPressed: () {
+            onPressed: () async {
               setState(() {
                 _ttsEnabled = !_ttsEnabled;
               });
+              // Stop speaking if TTS was just disabled
+              if (!_ttsEnabled) {
+                await _flutterTts.stop();
+              }
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(_ttsEnabled 
                       ? 'Text-to-Speech enabled' 
-                      : 'Text-to-Speech disabled'),
+                      : 'Text-to-Speech stopped'),
                   duration: const Duration(seconds: 1),
                 ),
               );
@@ -569,15 +597,15 @@ class _ChatScreenState extends State<ChatScreen> {
               Text(
                 _isLiveMode ? 'Live' : 'Normal',
                 style: TextStyle(
-                  color: _isLiveMode ? Colors.greenAccent : Colors.white70,
+                  color: _isLiveMode ? AppColors.liveActive : AppColors.textMuted,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Switch(
                 value: _isLiveMode,
                 onChanged: _isLoading ? null : _toggleLiveMode,
-                activeColor: Colors.greenAccent,
-                inactiveThumbColor: Colors.grey,
+                activeColor: AppColors.liveActive,
+                inactiveThumbColor: AppColors.textMuted,
               ),
             ],
           ),
@@ -587,11 +615,11 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: _isAiSpeaking ? Colors.orangeAccent : Colors.greenAccent,
+                color: _isAiSpeaking ? AppColors.aiSpeaking : AppColors.liveActive,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (_isAiSpeaking ? Colors.orangeAccent : Colors.greenAccent).withValues(alpha: 0.5),
+                    color: (_isAiSpeaking ? AppColors.aiSpeaking : AppColors.liveActive).withValues(alpha: 0.5),
                     blurRadius: 6,
                     spreadRadius: 2,
                   ),
@@ -601,25 +629,25 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       drawer: Drawer(
-        backgroundColor: Colors.grey.shade900,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.all(16),
-                color: Colors.black,
-                child: const Row(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                color: AppColors.primary,
+                child: Row(
                   children: [
-                    Icon(Icons.settings, color: Colors.yellowAccent, size: 28),
-                    SizedBox(width: 12),
+                    Icon(Icons.settings, color: AppColors.sdg11Yellow, size: 28),
+                    const SizedBox(width: AppSpacing.md),
                     Text(
                       'Settings & History',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textLight,
                       ),
                     ),
                   ],
@@ -628,10 +656,10 @@ class _ChatScreenState extends State<ChatScreen> {
               
               // Text-to-Speech Toggle
               SwitchListTile(
-                title: const Text('Text-to-Speech', style: TextStyle(color: Colors.white)),
+                title: Text('Text-to-Speech', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
                 subtitle: Text(
                   _ttsEnabled ? 'AI responses will be spoken' : 'Silent mode',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
                 value: _ttsEnabled,
                 onChanged: (value) {
@@ -639,31 +667,63 @@ class _ChatScreenState extends State<ChatScreen> {
                     _ttsEnabled = value;
                   });
                 },
-                activeColor: Colors.greenAccent,
+                activeColor: AppColors.liveActive,
                 secondary: Icon(
                   _ttsEnabled ? Icons.volume_up : Icons.volume_off,
-                  color: _ttsEnabled ? Colors.greenAccent : Colors.grey,
+                  color: _ttsEnabled ? AppColors.liveActive : AppColors.textMuted,
                 ),
               ),
               
-              const Divider(color: Colors.grey),
+              // Dark Mode Toggle (Immediate Effect)
+              SwitchListTile(
+                title: Text('Dark Mode', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                subtitle: Text(
+                  ThemeNotifier().isDarkMode ? 'Dark theme active' : 'Light theme active',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                value: ThemeNotifier().isDarkMode,
+                onChanged: (value) {
+                  ThemeNotifier().setDarkMode(value);
+                  setState(() {}); // Refresh UI
+                },
+                activeColor: AppColors.primary,
+                secondary: Icon(
+                  ThemeNotifier().isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  color: ThemeNotifier().isDarkMode ? AppColors.sdg11Yellow : AppColors.textMuted,
+                ),
+              ),
+              
+              const Divider(),
+              
+              // Share Conversation Button
+              ListTile(
+                leading: Icon(Icons.share, color: AppColors.primary),
+                title: Text('Share Conversation', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                subtitle: Text('Export as text', style: TextStyle(color: AppColors.textSecondary)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareConversation();
+                },
+              ),
+              
+              const Divider(),
               
               // Chat History Header
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Chat History (3 days)',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.yellowAccent,
+                        color: AppColors.sdg11Yellow,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.white70),
+                      icon: Icon(Icons.refresh, color: AppColors.textSecondary),
                       onPressed: _loadChatHistory,
                       tooltip: 'Refresh',
                     ),
@@ -671,19 +731,27 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               
+              // Search Bar
+              ChatSearchBar(
+                onSearch: (query) {
+                  setState(() {
+                    _searchQuery = query;
+                  });
+                },
+              ),
               // Chat History List (Grouped by Topic)
               Expanded(
-                child: _chatHistory.isEmpty
-                    ? const Center(
+                child: _filteredChatHistory.isEmpty
+                    ? Center(
                         child: Text(
-                          'No conversations yet',
-                          style: TextStyle(color: Colors.white54),
+                          _searchQuery.isEmpty ? 'No conversations yet' : 'No matching conversations',
+                          style: TextStyle(color: AppColors.textMuted),
                         ),
                       )
                     : ListView.builder(
-                        itemCount: _chatHistory.length,
+                        itemCount: _filteredChatHistory.length,
                         itemBuilder: (context, index) {
-                          final topic = _chatHistory[index];
+                          final topic = _filteredChatHistory[index];
                           final topicId = topic['topicId']?.toString() ?? '';
                           final messageCount = topic['messageCount'] ?? 0;
                           final firstMessage = topic['firstMessage']?.toString() ?? 'New conversation';
@@ -708,30 +776,30 @@ class _ChatScreenState extends State<ChatScreen> {
                               : firstMessage;
                           
                           return Card(
-                            color: Colors.grey.shade800,
-                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            color: AppColors.surface,
+                            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Colors.cyanAccent.withValues(alpha: 0.2),
-                                child: const Icon(
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                                child: Icon(
                                   Icons.chat_bubble_outline,
-                                  color: Colors.cyanAccent,
+                                  color: AppColors.primary,
                                   size: 20,
                                 ),
                               ),
                               title: Text(
                                 title,
-                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               subtitle: Text(
                                 '$messageCount messages • $timeStr',
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                               ),
-                              trailing: const Icon(
+                              trailing: Icon(
                                 Icons.chevron_right,
-                                color: Colors.white54,
+                                color: AppColors.textSecondary,
                               ),
                               onTap: () {
                                 Navigator.pop(context);
@@ -745,7 +813,7 @@ class _ChatScreenState extends State<ChatScreen> {
               
               // Clear History Button
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: ElevatedButton.icon(
                   onPressed: () {
                     setState(() {
@@ -756,8 +824,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Clear Current Chat'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent.withValues(alpha: 0.3),
-                    foregroundColor: Colors.redAccent,
+                    backgroundColor: AppColors.error.withValues(alpha: 0.3),
+                    foregroundColor: AppColors.error,
                     minimumSize: const Size(double.infinity, 48),
                   ),
                 ),
@@ -771,110 +839,43 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
-                final role = msg['role'];
-                final isUser = role == 'user';
-                final isSystem = role == 'system';
-                final Uint8List? imageBytes = msg['imageBytes'];
-                
-                return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    padding: const EdgeInsets.all(16),
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSystem 
-                          ? Colors.blueGrey.shade800 
-                          : (isUser ? const Color(0xFF333333) : const Color(0xFF111111)),
-                      border: Border.all(
-                        color: isSystem 
-                            ? Colors.blueAccent 
-                            : (isUser ? Colors.white : Colors.yellowAccent),
-                        width: 2
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                           // Show actual image thumbnail if available
-                           if (imageBytes != null)
-                               Padding(
-                                   padding: const EdgeInsets.only(bottom: 8.0),
-                                   child: ClipRRect(
-                                     borderRadius: BorderRadius.circular(8),
-                                     child: Image.memory(
-                                       imageBytes,
-                                       width: 200,
-                                       height: 200,
-                                       fit: BoxFit.cover,
-                                     ),
-                                   ),
-                               ),
-                           if (msg['text'] != null && msg['text'].isNotEmpty)
-                             Text(
-                               msg['text'],
-                               style: TextStyle(
-                                 fontSize: isSystem ? 16 : 20,
-                                 fontStyle: isSystem ? FontStyle.italic : FontStyle.normal,
-                               ),
-                             ),
-                        ],
-                    ),
-                  ),
+                final imageBytes = msg['imageBytes'] as Uint8List?;
+                return InteractiveMessageBubble(
+                  role: msg['role'] ?? 'model',
+                  text: msg['text'] ?? '',
+                  imageBytes: imageBytes,
+                  onTapReadAloud: () => _speak(msg['text'] ?? ''),
+                  onDelete: () => _deleteMessage(index),
+                  onImageTap: imageBytes != null 
+                      ? () => _showImageFullscreen(imageBytes) 
+                      : null,
                 );
               },
             ),
           ),
           if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: LinearProgressIndicator(color: Colors.yellowAccent),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: LinearProgressIndicator(color: AppColors.sdg11Yellow),
             ),
           
           // Pending image preview
           if (_pendingImage != null && _pendingImageBytes != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.grey.shade900,
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      _pendingImageBytes!,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Image attached. Type a message or tap send.',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.redAccent),
-                    onPressed: _clearPendingImage,
-                  ),
-                ],
-              ),
+            PendingImagePreview(
+              imageBytes: _pendingImageBytes!,
+              onClear: _clearPendingImage,
             ),
           
           // Input Area
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Colors.black,
-              border: Border(top: BorderSide(color: Colors.yellowAccent, width: 2)),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(top: BorderSide(color: AppColors.primary, width: 2)),
             ),
             child: Row(
               children: [
@@ -882,47 +883,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   // Live Mode: Large microphone button
                   Expanded(
                     child: Center(
-                      child: Column(
-                        children: [
-                          if (_isAiSpeaking)
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                '🔊 AI is speaking...',
-                                style: TextStyle(color: Colors.orangeAccent),
-                              ),
-                            ),
-                          Semantics(
-                            label: _isRecording ? "Stop Recording" : "Start Recording",
-                            button: true,
-                            child: GestureDetector(
-                              onTap: _isLiveSessionActive && !_isAiSpeaking ? _toggleRecording : null,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                width: _isRecording ? 100 : 80,
-                                height: _isRecording ? 100 : 80,
-                                decoration: BoxDecoration(
-                                  color: _isAiSpeaking 
-                                      ? Colors.grey 
-                                      : (_isRecording ? Colors.redAccent : Colors.greenAccent),
-                                  shape: BoxShape.circle,
-                                  boxShadow: _isRecording ? [
-                                    BoxShadow(
-                                      color: Colors.redAccent.withValues(alpha: 0.6),
-                                      blurRadius: 20,
-                                      spreadRadius: 4,
-                                    ),
-                                  ] : [],
-                                ),
-                                child: Icon(
-                                  _isRecording ? Icons.stop : Icons.mic,
-                                  color: Colors.white,
-                                  size: 48,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: MicrophoneButton(
+                        isRecording: _isRecording,
+                        isAiSpeaking: _isAiSpeaking,
+                        isEnabled: _isLiveSessionActive,
+                        onPressed: _toggleRecording,
                       ),
                     ),
                   ),
@@ -932,10 +897,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       label: "Take Picture",
                       button: true,
                       child: IconButton(
-                          icon: const Icon(Icons.camera_alt, color: Colors.cyanAccent, size: 40),
+                          icon: Icon(Icons.camera_alt, color: AppColors.sdg9Orange, size: 40),
                           onPressed: () => _pickImage(ImageSource.camera),
                           style: IconButton.styleFrom(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(AppSpacing.md),
                           ),
                       ),
                   ),
@@ -943,32 +908,29 @@ class _ChatScreenState extends State<ChatScreen> {
                       label: "Choose from Gallery",
                       button: true,
                       child: IconButton(
-                          icon: const Icon(Icons.photo_library, color: Colors.cyanAccent, size: 40),
+                          icon: Icon(Icons.photo_library, color: AppColors.sdg9Orange, size: 40),
                           onPressed: () => _pickImage(ImageSource.gallery),
                       ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: TextField(
                       controller: _textController,
-                      style: const TextStyle(fontSize: 18),
+                      style: AppTextStyles.bodyMedium,
                       decoration: InputDecoration(
                           hintText: _pendingImage != null 
                               ? "Add a message about the image..." 
                               : "Type message...",
-                          filled: true,
-                          fillColor: const Color(0xFF222222),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
                       ),
                       onSubmitted: (val) => _handleSendMessage(text: val),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.sm),
                   Semantics(
                       label: "Send Message",
                       button: true,
                       child: IconButton(
-                          icon: const Icon(Icons.send, color: Colors.yellowAccent, size: 40),
+                          icon: Icon(Icons.send, color: AppColors.primary, size: 40),
                           onPressed: () => _handleSendMessage(text: _textController.text),
                       ),
                   ),
