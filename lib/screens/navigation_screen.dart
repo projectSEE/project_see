@@ -1,0 +1,624 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/navigation_service.dart';
+import '../services/location_awareness_service.dart';
+import '../services/tts_service.dart';
+
+/// Accessible navigation screen for blind users
+class NavigationScreen extends StatefulWidget {
+  const NavigationScreen({super.key});
+
+  @override
+  State<NavigationScreen> createState() => _NavigationScreenState();
+}
+
+class _NavigationScreenState extends State<NavigationScreen> {
+  final NavigationService _navService = NavigationService();
+  final LocationAwarenessService _awarenessService = LocationAwarenessService();
+  final TTSService _ttsService = TTSService();
+  final TextEditingController _searchController = TextEditingController();
+  
+  GoogleMapController? _mapController;
+  Position? _currentPosition;
+  List<PlaceResult> _searchResults = [];
+  PlaceResult? _selectedDestination;
+  Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
+  bool _isSearching = false;
+  bool _isLoadingRoute = false;
+  bool _hasLocationPermission = false;
+  String _locationError = '';
+  List<NearbyPOI> _nearbyPOIs = [];
+  String _lastAnnouncement = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _navService.initialize();
+    await _ttsService.initialize();
+    
+    // Request location permission first
+    final permissionGranted = await _requestLocationPermission();
+    if (!permissionGranted) {
+      setState(() {
+        _locationError = '需要位置权限才能使用导航功能';
+      });
+      return;
+    }
+    
+    _currentPosition = await _navService.getCurrentLocation();
+    if (_currentPosition != null) {
+      setState(() {
+        _markers.add(Marker(
+          markerId: const MarkerId('current'),
+          position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          infoWindow: const InfoWindow(title: '你的位置'),
+        ));
+      });
+    } else {
+      setState(() {
+        _locationError = '无法获取当前位置';
+      });
+      await _ttsService.speak('无法获取当前位置，请检查位置服务是否已开启');
+      return;
+    }
+
+    // Set up callbacks
+    _navService.onStepChanged = (step) {
+      setState(() {});
+    };
+    
+    _navService.onArrived = (message) {
+      _showArrivedDialog(message);
+    };
+    
+    _navService.onPositionUpdate = (position) {
+      setState(() {
+        _currentPosition = position;
+      });
+    };
+    
+    // Set up awareness service
+    await _awarenessService.initialize();
+    _awarenessService.onPOIsFound = (pois) {
+      setState(() => _nearbyPOIs = pois);
+    };
+    _awarenessService.onAnnouncement = (text) {
+      setState(() => _lastAnnouncement = text);
+    };
+    
+    await _ttsService.speak('导航界面已打开。请输入目的地或开启探索模式。');
+  }
+
+  /// Request location permission with user-friendly messages
+  Future<bool> _requestLocationPermission() async {
+    await _ttsService.speak('正在请求位置权限');
+    
+    // Check current permission status
+    var status = await Permission.locationWhenInUse.status;
+    debugPrint('📍 Location permission status: $status');
+    
+    if (status.isGranted) {
+      setState(() => _hasLocationPermission = true);
+      return true;
+    }
+    
+    if (status.isDenied) {
+      // Request permission
+      status = await Permission.locationWhenInUse.request();
+      debugPrint('📍 Permission after request: $status');
+    }
+    
+    if (status.isGranted) {
+      setState(() => _hasLocationPermission = true);
+      await _ttsService.speak('位置权限已授予');
+      return true;
+    }
+    
+    if (status.isPermanentlyDenied) {
+      await _ttsService.speak('位置权限被永久拒绝，请在设置中开启');
+      // Show dialog to open settings
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('需要位置权限'),
+            content: const Text('请在设置中开启位置权限以使用导航功能'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+                child: const Text('打开设置'),
+              ),
+            ],
+          ),
+        );
+      }
+      return false;
+    }
+    
+    await _ttsService.speak('位置权限被拒绝，导航功能无法使用');
+    return false;
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    if (query.isEmpty) return;
+    
+    setState(() => _isSearching = true);
+    await _ttsService.speak('正在搜索$query');
+    
+    final results = await _navService.searchPlaces(query);
+    
+    setState(() {
+      _searchResults = results;
+      _isSearching = false;
+    });
+    
+    if (results.isEmpty) {
+      await _ttsService.speak('未找到结果');
+    } else {
+      await _ttsService.speak('找到${results.length}个结果。${results.first.name}');
+    }
+  }
+
+  Future<void> _selectDestination(PlaceResult place) async {
+    setState(() {
+      _selectedDestination = place;
+      _searchResults = [];
+      _isLoadingRoute = true;
+      
+      // Add destination marker
+      _markers.add(Marker(
+        markerId: const MarkerId('destination'),
+        position: LatLng(place.lat, place.lng),
+        infoWindow: InfoWindow(title: place.name),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ));
+    });
+    
+    await _ttsService.speak('已选择${place.name}。正在获取路线。');
+    
+    // Get route
+    if (_currentPosition != null) {
+      final steps = await _navService.getRoute(
+        _currentPosition!.latitude, _currentPosition!.longitude,
+        place.lat, place.lng,
+      );
+      
+      if (steps.isNotEmpty) {
+        // Draw route polyline
+        final points = steps.map((s) => LatLng(s.startLat, s.startLng)).toList();
+        points.add(LatLng(steps.last.endLat, steps.last.endLng));
+        
+        setState(() {
+          _polylines.add(Polyline(
+            polylineId: const PolylineId('route'),
+            points: points,
+            color: Colors.blue,
+            width: 5,
+          ));
+          _isLoadingRoute = false;
+        });
+        
+        // Zoom to fit route
+        _mapController?.animateCamera(CameraUpdate.newLatLngBounds(
+          _getBounds(points),
+          50,
+        ));
+      }
+    }
+    
+    setState(() => _isLoadingRoute = false);
+  }
+
+  LatLngBounds _getBounds(List<LatLng> points) {
+    double minLat = points.first.latitude;
+    double maxLat = points.first.latitude;
+    double minLng = points.first.longitude;
+    double maxLng = points.first.longitude;
+    
+    for (final point in points) {
+      if (point.latitude < minLat) minLat = point.latitude;
+      if (point.latitude > maxLat) maxLat = point.latitude;
+      if (point.longitude < minLng) minLng = point.longitude;
+      if (point.longitude > maxLng) maxLng = point.longitude;
+    }
+    
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+  }
+
+  Future<void> _startNavigation() async {
+    if (_selectedDestination == null) return;
+    await _navService.startNavigation(_selectedDestination!);
+    setState(() {});
+  }
+
+  void _stopNavigation() {
+    _navService.stopNavigation();
+    setState(() {
+      _polylines.clear();
+      _markers.removeWhere((m) => m.markerId.value == 'destination');
+      _selectedDestination = null;
+    });
+    _ttsService.speak('导航已停止');
+  }
+
+  void _showArrivedDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🎉 已到达'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _stopNavigation();
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('无障碍导航'),
+        backgroundColor: Colors.blue[700],
+        foregroundColor: Colors.white,
+        actions: [
+          if (_navService.isNavigating)
+            IconButton(
+              icon: const Icon(Icons.stop),
+              onPressed: _stopNavigation,
+              tooltip: '停止导航',
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Explore mode button
+          if (!_navService.isNavigating && !_awarenessService.isExploring)
+            _buildExploreButton(),
+          
+          // Explore mode panel
+          if (_awarenessService.isExploring)
+            _buildExplorePanel(),
+          
+          // Search bar (only when not exploring)
+          if (!_awarenessService.isExploring)
+            _buildSearchBar(),
+          
+          // Search results
+          if (_searchResults.isNotEmpty) _buildSearchResults(),
+          
+          // Map
+          Expanded(
+            child: _buildMap(),
+          ),
+          
+          // Navigation controls
+          if (_selectedDestination != null && !_navService.isNavigating)
+            _buildStartButton(),
+          
+          if (_navService.isNavigating)
+            _buildNavigationPanel(),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildExploreButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.orange[50],
+      child: ElevatedButton.icon(
+        onPressed: () {
+          _awarenessService.startExploring();
+          setState(() {});
+        },
+        icon: const Icon(Icons.explore),
+        label: const Text('开启探索模式 - 自动播报周边环境'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange[700],
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildExplorePanel() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange[700],
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Icon(Icons.explore, color: Colors.white),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '探索模式',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _awarenessService.stopExploring();
+                  setState(() => _nearbyPOIs.clear());
+                },
+                icon: const Icon(Icons.stop, size: 18),
+                label: const Text('停止'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.orange[700],
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+          
+          // Last announcement
+          if (_lastAnnouncement.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _lastAnnouncement,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          
+          // Nearby POIs count
+          const SizedBox(height: 8),
+          Text(
+            '附近发现 ${_nearbyPOIs.length} 个地点',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.grey[100],
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: '搜索目的地...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onSubmitted: _searchPlaces,
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: _isSearching ? null : () => _searchPlaces(_searchController.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            ),
+            child: _isSearching
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Text('搜索'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 200),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _searchResults.length,
+        itemBuilder: (context, index) {
+          final place = _searchResults[index];
+          return ListTile(
+            leading: const Icon(Icons.place, color: Colors.red),
+            title: Text(place.name),
+            subtitle: Text(place.address),
+            onTap: () => _selectDestination(place),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMap() {
+    // Show error message if there's a location error
+    if (_locationError.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.location_off, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _locationError,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() => _locationError = '');
+                  _initialize();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('重试'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => openAppSettings(),
+                child: const Text('打开设置'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    if (_currentPosition == null) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('正在获取位置...'),
+          ],
+        ),
+      );
+    }
+    
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(
+        target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+        zoom: 16,
+      ),
+      onMapCreated: (controller) => _mapController = controller,
+      markers: _markers,
+      polylines: _polylines,
+      myLocationEnabled: true,
+      myLocationButtonEnabled: true,
+      zoomControlsEnabled: true,
+    );
+  }
+
+  Widget _buildStartButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      child: ElevatedButton.icon(
+        onPressed: _isLoadingRoute ? null : _startNavigation,
+        icon: const Icon(Icons.navigation),
+        label: Text('开始导航到 ${_selectedDestination!.name}'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green[700],
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavigationPanel() {
+    final step = _navService.currentStep;
+    if (step == null) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[700],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Current instruction
+          Text(
+            step.instruction,
+            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${step.distance} · ${step.duration}',
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          
+          // Control buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // Repeat button
+              ElevatedButton.icon(
+                onPressed: _navService.repeatInstruction,
+                icon: const Icon(Icons.replay),
+                label: const Text('重复'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.blue[700],
+                ),
+              ),
+              
+              // Next step button
+              ElevatedButton.icon(
+                onPressed: _navService.nextStep,
+                icon: const Icon(Icons.skip_next),
+                label: const Text('下一步'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.blue[700],
+                ),
+              ),
+              
+              // Stop button
+              ElevatedButton.icon(
+                onPressed: _stopNavigation,
+                icon: const Icon(Icons.stop),
+                label: const Text('停止'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _navService.dispose();
+    _awarenessService.dispose();
+    _ttsService.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+}

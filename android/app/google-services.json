@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "777852765437",
+    "firebase_url": "https://kitahack-8b81a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "kitahack-8b81a",
+    "storage_bucket": "kitahack-8b81a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:777852765437:android:b964fbe6b39498fb48aa94",
+        "android_client_info": {
+          "package_name": "com.example.visual_assistant_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:777852765437:android:327159179f18e7fc48aa94",
+        "android_client_info": {
+          "package_name": "com.kitahack.blind_assist"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
