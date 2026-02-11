@@ -15,6 +15,8 @@ jobs:
       # 1. Get the code
       - name: Checkout Code
         uses: actions/checkout@v3
+        with:
+          submodules: false
 
       # 2. Set up Java (Required for Android)
       - name: Set up JDK 17
