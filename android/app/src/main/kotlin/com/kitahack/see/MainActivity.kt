@@ -1,4 +1,4 @@
-package com.kitahack.blind_assist
+package com.kitahack.see
 
 import android.graphics.ImageFormat
 import android.graphics.Rect

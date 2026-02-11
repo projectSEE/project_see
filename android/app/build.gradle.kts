@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kitahack.blind_assist"
+    namespace = "com.kitahack.see"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.kitahack.blind_assist"
+        applicationId = "com.kitahack.see"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24  // Required for ML Kit and flutter_tts
