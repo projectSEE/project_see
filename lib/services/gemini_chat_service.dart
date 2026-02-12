@@ -165,7 +165,7 @@ class GeminiChatService {
       throw Exception('Live session not active. Call connectLive() first.');
     }
     
-    await _session!.sendAudio(mediaStream);
+    await _session!.sendMediaStream(mediaStream);
   }
 
   /// Get the stream of responses from the Live API.
