@@ -1,8 +1,20 @@
 {
   "functions": [
     {
-      "source": "functions",
       "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "source": "functions"
+    },
+    {
+      "source": "guardian_functions",
+      "codebase": "guardian_functions",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",
@@ -12,5 +24,24 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "kitahack-8b81a",
+          "appId": "1:777852765437:android:40978f6b703e53ce48aa94",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "kitahack-8b81a",
+          "configurations": {
+            "android": "1:777852765437:android:40978f6b703e53ce48aa94"
+          }
+        }
+      }
+    }
+  }
 }
