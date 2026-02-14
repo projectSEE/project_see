@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
@@ -5,48 +6,15 @@ import 'package:flutter_tts/flutter_tts.dart';
 class TTSService {
   final FlutterTts _flutterTts = FlutterTts();
   bool _isInitialized = false;
+  bool _isConfigured = false;
   bool _isSpeaking = false;
   String _lastSpoken = '';
   DateTime _lastSpokenTime = DateTime.now();
 
-  /// Initialize TTS with Malaysian/English settings
+  /// Initialize TTS — just registers handlers, doesn't block on engine
   Future<void> initialize() async {
     if (_isInitialized) return;
-
-    // Wait for the TTS engine to bind (Android needs time to connect)
-    bool engineReady = false;
-    for (int attempt = 0; attempt < 5; attempt++) {
-      try {
-        final engines = await _flutterTts.getEngines;
-        if (engines != null && (engines as List).isNotEmpty) {
-          engineReady = true;
-          debugPrint('TTS: Engine bound after ${attempt + 1} attempt(s)');
-          break;
-        }
-      } catch (e) {
-        debugPrint('TTS: Engine not ready yet (attempt ${attempt + 1}/5)');
-      }
-      await Future.delayed(const Duration(seconds: 1));
-    }
-
-    if (!engineReady) {
-      debugPrint('TTS: WARNING - Engine not bound after retries, proceeding anyway');
-    }
-
-    await _flutterTts.setLanguage('en-US');
-    await _flutterTts.setSpeechRate(0.5); // Slightly slower for clarity
-    await _flutterTts.setVolume(1.0);
-    await _flutterTts.setPitch(1.0);
-
-    // Try to set Malaysian English if available
-    try {
-      final languages = await _flutterTts.getLanguages;
-      if (languages != null && (languages as List).contains('en-MY')) {
-        await _flutterTts.setLanguage('en-MY');
-      }
-    } catch (e) {
-      debugPrint('TTS: Could not check languages: $e');
-    }
+    _isInitialized = true;
 
     _flutterTts.setStartHandler(() {
       _isSpeaking = true;
@@ -61,13 +29,37 @@ class TTSService {
       debugPrint('TTS Error: $msg');
     });
 
-    _isInitialized = true;
-    debugPrint('TTS: Initialized successfully');
+    debugPrint('TTS: Handlers registered, engine will configure on first speak');
+
+    // Schedule engine configuration after a delay
+    // This gives the Android TTS engine time to bind
+    Future.delayed(const Duration(seconds: 2), () => _configureEngine());
+  }
+
+  /// Configure TTS engine settings (called after engine has had time to bind)
+  Future<void> _configureEngine() async {
+    if (_isConfigured) return;
+    
+    try {
+      await _flutterTts.setLanguage('en-US');
+      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(1.0);
+      _isConfigured = true;
+      debugPrint('TTS: Engine configured ✅');
+    } catch (e) {
+      debugPrint('TTS: Config error (will retry): $e');
+    }
   }
 
   /// Speak a message (with duplicate prevention)
   Future<void> speak(String message, {bool force = false}) async {
     if (!_isInitialized) await initialize();
+
+    // Ensure engine is configured before speaking
+    if (!_isConfigured) {
+      await _configureEngine();
+    }
 
     // Prevent duplicate announcements within 2 seconds
     final now = DateTime.now();
@@ -77,7 +69,7 @@ class TTSService {
       return;
     }
 
-    // If already speaking, queue or skip based on priority
+    // If already speaking, skip unless forced
     if (_isSpeaking && !force) {
       return;
     }
@@ -88,7 +80,14 @@ class TTSService {
 
     _lastSpoken = message;
     _lastSpokenTime = now;
-    await _flutterTts.speak(message);
+    
+    try {
+      await _flutterTts.speak(message);
+    } catch (e) {
+      debugPrint('TTS: speak error: $e');
+      // If speak fails, engine might not be bound yet — try reconfiguring
+      _isConfigured = false;
+    }
   }
 
   /// Speak an urgent warning (interrupts current speech)
