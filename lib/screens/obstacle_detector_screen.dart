@@ -73,6 +73,7 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen>
   Timer? _fallbackTimer;
   Timer? _liveFrameTimer;
   int _streamErrorCount = 0;
+  bool _wasDetectingBeforePause = true;
   
   // Speech recognition
   late stt.SpeechToText _speech;
@@ -109,24 +110,34 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen>
 
   /// Pause camera stream and detection (e.g. when navigating away)
   void _pauseDetection() {
+    _wasDetectingBeforePause = _isDetecting;
+    _isDetecting = false;
+    _announceTimer?.cancel();
     _fallbackTimer?.cancel();
     if (_cameraController != null && _cameraController!.value.isStreamingImages) {
       _cameraController!.stopImageStream();
     }
     _ttsService.stop();
     _vibrationService.cancel();
-    debugPrint('⏸️ Detection paused');
+    debugPrint('⏸️ Detection fully paused');
   }
 
   /// Resume camera stream and detection (e.g. when returning from another page)
   Future<void> _resumeDetection() async {
     if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    _isDetecting = _wasDetectingBeforePause;
     if (_isDetecting) {
       if (_useStreamMode) {
         await _cameraController!.startImageStream(_processStreamImage);
       } else {
         _startFallbackDetection();
       }
+      // Restart announce timer
+      _announceTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (_isDetecting && _obstacles.isNotEmpty) {
+          _announceClosestObstacle();
+        }
+      });
     }
     debugPrint('▶️ Detection resumed');
   }
