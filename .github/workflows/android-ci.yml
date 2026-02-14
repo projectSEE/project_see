@@ -53,10 +53,24 @@ jobs:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
 
-      # 9. Upload to Firebase (Only runs on push to development or manual trigger)
+      # 9. Verify Firebase secrets exist
+      - name: Check Firebase secrets
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/development')
+        run: |
+          if [ -z "${{ secrets.FIREBASE_APP_ID }}" ]; then
+            echo "::error::FIREBASE_APP_ID secret is not set. Please add it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          if [ -z "${{ secrets.FIREBASE_SERVICE_CREDENTIALS }}" ]; then
+            echo "::error::FIREBASE_SERVICE_CREDENTIALS secret is not set. Please add the service account JSON in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "✅ Firebase secrets are configured"
+
+      # 10. Upload to Firebase (Only runs on push to development or manual trigger)
       - name: Upload to Firebase App Distribution
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/development')
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        uses: wzieba/Firebase-Distribution-Github-Action@v1.7.0
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_CREDENTIALS }}
