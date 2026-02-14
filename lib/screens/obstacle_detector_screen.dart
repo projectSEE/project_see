@@ -1140,66 +1140,33 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen>
               ),
             ),
             const SizedBox(height: 12),
-            // Navigation & Chat buttons
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      _pauseDetection();
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const NavigationScreen()),
-                      );
-                      _resumeDetection();
-                    },
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.teal[600],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.navigation, color: Colors.white, size: 24),
-                            SizedBox(width: 8),
-                            Text('NAVIGATE', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ),
+            // Navigation button
+            GestureDetector(
+              onTap: () async {
+                _pauseDetection();
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const NavigationScreen()),
+                );
+                _resumeDetection();
+              },
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.teal[600],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.navigation, color: Colors.white, size: 24),
+                      SizedBox(width: 8),
+                      Text('NAVIGATE', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      _pauseDetection();
-                      await Navigator.pushNamed(context, '/chat');
-                      _resumeDetection();
-                    },
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.deepPurple[600],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.chat, color: Colors.white, size: 24),
-                            SizedBox(width: 8),
-                            Text('CHAT', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
