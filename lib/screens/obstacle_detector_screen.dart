@@ -100,11 +100,35 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive) {
-      _fallbackTimer?.cancel();
+      _pauseDetection();
       _cameraController?.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
     }
+  }
+
+  /// Pause camera stream and detection (e.g. when navigating away)
+  void _pauseDetection() {
+    _fallbackTimer?.cancel();
+    if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+      _cameraController!.stopImageStream();
+    }
+    _ttsService.stop();
+    _vibrationService.cancel();
+    debugPrint('⏸️ Detection paused');
+  }
+
+  /// Resume camera stream and detection (e.g. when returning from another page)
+  Future<void> _resumeDetection() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    if (_isDetecting) {
+      if (_useStreamMode) {
+        await _cameraController!.startImageStream(_processStreamImage);
+      } else {
+        _startFallbackDetection();
+      }
+    }
+    debugPrint('▶️ Detection resumed');
   }
 
   Future<void> _initializeApp() async {
@@ -1110,11 +1134,13 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen>
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      _pauseDetection();
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const NavigationScreen()),
                       );
+                      _resumeDetection();
                     },
                     child: Container(
                       height: 50,
@@ -1138,8 +1164,10 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen>
                 const SizedBox(width: 12),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/chat');
+                    onTap: () async {
+                      _pauseDetection();
+                      await Navigator.pushNamed(context, '/chat');
+                      _resumeDetection();
                     },
                     child: Container(
                       height: 50,
