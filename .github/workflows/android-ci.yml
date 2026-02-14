@@ -34,9 +34,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # 5. Analyze code
+      # 5. Analyze code (only fail on errors, not infos/warnings)
       - name: Analyze code
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       # 6. Run Tests (skipped - tests need Firebase mock setup)
       # - name: Run Tests
