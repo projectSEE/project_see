@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:firebase_ai/firebase_ai.dart';
 
@@ -8,12 +9,60 @@ class GeminiService {
   LiveGenerativeModel? _liveModel;
   LiveSession? _session;
   bool _isLiveSessionActive = false;
+  bool _isInitialized = false;
+  bool _isProcessing = false;
+
+  /// Whether the service has been initialized.
+  bool get isInitialized => _isInitialized;
+
+  /// Whether a request is currently being processed.
+  bool get isProcessing => _isProcessing;
 
   GeminiService() {
     // Initialize the normal model using firebase_ai package
     _model = FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash-lite',
     );
+  }
+
+  /// Initialize the service (called from obstacle detector).
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    // Model is already created in constructor; mark as ready.
+    _isInitialized = true;
+  }
+
+  /// Capture an image from a file path and describe the scene using Gemini.
+  Future<String> describeScene(String imagePath) async {
+    _isProcessing = true;
+    try {
+      final imageBytes = await File(imagePath).readAsBytes();
+      final result = await sendMessage(
+        'Describe this scene in detail for a visually impaired person. '
+        'Include obstacles, surroundings, and any important details.',
+        imageBytes: imageBytes,
+        imageMimeType: 'image/jpeg',
+      );
+      return result;
+    } finally {
+      _isProcessing = false;
+    }
+  }
+
+  /// Answer a question about an image captured from the given file path.
+  Future<String> askQuestion(String imagePath, String question) async {
+    _isProcessing = true;
+    try {
+      final imageBytes = await File(imagePath).readAsBytes();
+      final result = await sendMessage(
+        question,
+        imageBytes: imageBytes,
+        imageMimeType: 'image/jpeg',
+      );
+      return result;
+    } finally {
+      _isProcessing = false;
+    }
   }
 
   /// Initialize the Live model for real-time audio streaming.
