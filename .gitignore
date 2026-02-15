@@ -46,11 +46,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-<<<<<<< Updated upstream
-=======
+
 
 # FVM Version Cache
 .fvm/
 # Node modules
 node_modules/
->>>>>>> Stashed changes
