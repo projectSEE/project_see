@@ -58,7 +58,7 @@ class ContextAggregatorService {
         ? 'Clear path ahead' 
         : parts.join('. ');
     
-    // Determine priority for feedback
+    // Determine priority for feedbacks
     final priority = _determinePriority(obstacles, textBlocks);
     
     return ContextSummary(
