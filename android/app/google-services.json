@@ -13,7 +13,12 @@
           "package_name": "com.example.firebase_ai_live_demo"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
@@ -21,7 +26,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "777852765437-55h6fuhvcj6gd2lniac5sop795guti6i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kitahack.blindAssist"
+              }
+            }
+          ]
         }
       }
     },
@@ -32,7 +49,12 @@
           "package_name": "com.example.see"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
@@ -40,7 +62,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "777852765437-55h6fuhvcj6gd2lniac5sop795guti6i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kitahack.blindAssist"
+              }
+            }
+          ]
         }
       }
     },
@@ -51,7 +85,12 @@
           "package_name": "com.example.visual_assistant_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
@@ -59,7 +98,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "777852765437-55h6fuhvcj6gd2lniac5sop795guti6i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kitahack.blindAssist"
+              }
+            }
+          ]
         }
       }
     },
@@ -70,7 +121,12 @@
           "package_name": "com.kitahack.blind_assist"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
@@ -78,7 +134,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "777852765437-55h6fuhvcj6gd2lniac5sop795guti6i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kitahack.blindAssist"
+              }
+            }
+          ]
         }
       }
     },
@@ -89,7 +157,20 @@
           "package_name": "com.kitahack.see"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "777852765437-63he26v030sh1ectj26l02ifucshhjps.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kitahack.see",
+            "certificate_hash": "c70e7d5c9174cedfe6408da930e3102c1e68020a"
+          }
+        },
+        {
+          "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD5h7MV3o67ubBeNIeGtJxsJchnpYHNGtA"
@@ -97,7 +178,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "777852765437-55h6fuhvcj6gd2lniac5sop795guti6i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kitahack.blindAssist"
+              }
+            }
+          ]
         }
       }
     }

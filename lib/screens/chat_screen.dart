@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/gemini_service.dart';
 import '../services/firestore_service.dart';
+import '../services/tts_service.dart';
 import '../utils/audio_input.dart';
 import '../utils/audio_output.dart';
 import '../utils/conversation_exporter.dart';
@@ -24,7 +25,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final GeminiService _geminiService = GeminiService();
   final FirestoreService _firestoreService = FirestoreService();
-  final FlutterTts _flutterTts = FlutterTts();
+  final TTSService _ttsService = TTSService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
@@ -33,8 +34,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final AudioInput _audioInput = AudioInput();
   final AudioOutput _audioOutput = AudioOutput();
   
-  // User identification (in production, use Firebase Auth)
-  final String _userId = 'demo_user';
+  // User identification from Firebase Auth
+  String get _userId => FirebaseAuth.instance.currentUser?.uid ?? 'anonymous';
   
   // Current conversation topic/session ID
   String _currentTopicId = '';
@@ -43,7 +44,6 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, dynamic>> _messages = [];
   
   bool _isLoading = false;
-  bool _ttsReady = false;
   
   // Live mode state
   bool _isLiveMode = false;
@@ -69,7 +69,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _currentTopicId = DateTime.now().millisecondsSinceEpoch.toString();
-    _initTts();
+    _ttsService.initialize();
     _initAudio();
     _initDatabase();
   }
@@ -117,50 +117,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _initTts({int retryCount = 0}) async {
-    try {
-      // Wait for TTS engine to be available
-      var engines = await _flutterTts.getEngines;
-      
-      // If no engines found and haven't retried too many times, wait and retry
-      if ((engines == null || (engines as List).isEmpty) && retryCount < 3) {
-        debugPrint('TTS: No engines available, retrying in 1 second... (attempt ${retryCount + 1}/3)');
-        await Future.delayed(const Duration(seconds: 1));
-        return _initTts(retryCount: retryCount + 1);
-      }
-      
-      if (engines == null || (engines as List).isEmpty) {
-        debugPrint('TTS: No engines available after retries. Please install Google TTS from Play Store.');
-        return;
-      }
-      debugPrint('TTS: Available engines: $engines');
-      
-      // Check if language is available
-      final languages = await _flutterTts.getLanguages;
-      debugPrint('TTS: Available languages: ${(languages as List).take(5)}...');
-      
-      // Set up TTS with proper error handling
-      await _flutterTts.setLanguage('en-US');
-      await _flutterTts.setSpeechRate(0.5);
-      await _flutterTts.setPitch(1.0);
-      await _flutterTts.awaitSpeakCompletion(true);
-      
-      // Set completion handler
-      _flutterTts.setCompletionHandler(() {
-        debugPrint('TTS: Speech completed');
-      });
-      
-      _flutterTts.setErrorHandler((msg) {
-        debugPrint('TTS Error: $msg');
-      });
-      
-      _ttsReady = true;
-      debugPrint('TTS: Initialization complete');
-    } catch (e) {
-      debugPrint('TTS initialization error: $e');
-      _ttsReady = false;
-    }
-  }
+
 
   Future<void> _initAudio() async {
     await _audioInput.init();
@@ -286,24 +243,9 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     
-    if (!_ttsReady) {
-      debugPrint('TTS: Not ready yet, attempting re-initialization...');
-      await _initTts();
-      if (!_ttsReady) {
-        debugPrint('TTS: Still not ready after re-init, skipping');
-        return;
-      }
-    }
-    
-    try {
-      final result = await _flutterTts.speak(text);
-      if (result != 1) {
-        debugPrint('TTS: speak() returned $result (expected 1)');
-      }
-    } catch (e) {
-      debugPrint('TTS speak error: $e');
-    }
+    await _ttsService.speak(text, force: true, preventDuplicates: false);
   }
+
 
   /// Delete a message at the given index
   void _deleteMessage(int index) {
@@ -580,7 +522,7 @@ class _ChatScreenState extends State<ChatScreen> {
               });
               // Stop speaking if TTS was just disabled
               if (!_ttsEnabled) {
-                await _flutterTts.stop();
+                await _ttsService.stop();
               }
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import '../services/tts_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Accessibility settings utility class.
@@ -30,10 +30,10 @@ class AccessibilitySettings {
     await prefs.setDouble(_ttsSpeechRateKey, rate.clamp(0.0, 1.0));
   }
 
-  /// Apply speech rate to FlutterTts instance
-  static Future<void> applyTtsSettings(FlutterTts tts) async {
+  /// Apply speech rate to TTSService instance
+  static Future<void> applyTtsSettings() async {
     final rate = await getTtsSpeechRate();
-    await tts.setSpeechRate(rate);
+    await TTSService().setSpeechRate(rate);
   }
 
   // ============== Font Size Control ==============

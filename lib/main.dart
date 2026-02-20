@@ -7,22 +7,16 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
 // import 'package:url_launcher/url_launcher.dart'; // No longer needed for calls
-import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart'; // <--- NEW IMPORT
-import 'package:firebase_auth/firebase_auth.dart'; // <--- NEW IMPORT
+import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart'; 
 import 'screens/awareness_screen.dart';
+import 'screens/login_screen.dart'; // <--- NEW IMPORT
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  
-  // Sign in anonymously to allow Storage access
-  try {
-    await FirebaseAuth.instance.signInAnonymously();
-    debugPrint("Signed in anonymously");
-  } catch (e) {
-    debugPrint("Failed to sign in anonymously: $e");
-  }
 
   runApp(const VisualAssistantApp());
 }
@@ -83,7 +77,33 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
       theme: AppThemeConfig.lightTheme,
       darkTheme: AppThemeConfig.darkTheme,
       themeMode: _themeNotifier.themeMode,
-      home: const SafetyMonitor(child: HomeScreen()),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.userChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          } else if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(child: Text("Error: ${snapshot.error}")),
+            );
+          } else if (snapshot.hasData) {
+            final user = snapshot.data!;
+            // For email/password users, require email verification
+            final isEmailProvider = user.providerData
+                .any((p) => p.providerId == 'password');
+            if (isEmailProvider && !user.emailVerified) {
+              // Not verified — show LoginScreen (don't sign out!)
+              // The user stays signed in so LoginScreen can reload() them
+              return const LoginScreen();
+            }
+            return const SafetyMonitor(child: HomeScreen());
+          } else {
+            return const LoginScreen();
+          }
+        },
+      ),
     );
   }
 }
@@ -94,7 +114,19 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Visual Assistant'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Visual Assistant'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
