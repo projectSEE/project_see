@@ -29,7 +29,6 @@ dependencies:
   camera: ^0.11.0+2
   
   # Text-to-Speech for voice announcements
-  flutter_tts: ^4.2.5
   
   # Vibration feedback
   vibration: ^3.1.6
@@ -75,6 +74,8 @@ dependencies:
   wakelock_plus: ^1.4.0
   flutter_phone_direct_caller: ^2.2.1
   firebase_auth: ^6.1.4
+  google_sign_in: ^7.2.0
+  flutter_tts: 4.0.2
 
 dev_dependencies:
   flutter_test:
