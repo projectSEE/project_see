@@ -6,8 +6,10 @@ import 'theme/theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:just_audio/just_audio.dart'; // Import for siren
+// import 'package:url_launcher/url_launcher.dart'; // No longer needed for calls
+import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart'; // <--- NEW IMPORT
+import 'package:just_audio/just_audio.dart'; 
+import 'screens/awareness_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +28,8 @@ class ThemeNotifier extends ChangeNotifier {
   bool get isDarkMode => _themeMode == ThemeMode.dark;
 
   void toggleTheme() {
-    _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    _themeMode =
+        _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
   }
 
@@ -81,21 +84,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Visual Assistant'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Visual Assistant'), centerTitle: true),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.visibility,
-                size: 80,
-                color: Colors.blueAccent,
-              ),
+              const Icon(Icons.visibility, size: 80, color: Colors.blueAccent),
               const SizedBox(height: 16),
               const Text(
                 'Welcome to Visual Assistant',
@@ -142,9 +138,34 @@ class HomeScreen extends StatelessWidget {
                     );
                   },
                   icon: const Icon(Icons.chat, size: 28),
+                  label: const Text('Chatbot', style: TextStyle(fontSize: 18)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AwarenessMenuScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.visibility_off_outlined,
+                    size: 28,
+                  ), 
                   label: const Text(
-                    'Chatbot',
+                    'Vision Awareness',
                     style: TextStyle(fontSize: 18),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        Colors.purple.shade100, 
+                    foregroundColor: Colors.purple.shade900,
                   ),
                 ),
               ),
@@ -170,8 +191,8 @@ class SafetyMonitor extends StatefulWidget {
 
 class _SafetyMonitorState extends State<SafetyMonitor> {
   StreamSubscription? _accelerometerSubscription;
-  late AudioPlayer _audioPlayer; // Added AudioPlayer
-  
+  late AudioPlayer _audioPlayer; 
+
   bool _isFreeFalling = false;
   DateTime? _freeFallTimestamp;
   bool _isAlertActive = false;
@@ -183,12 +204,14 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
   @override
   void initState() {
     super.initState();
-    _audioPlayer = AudioPlayer(); // Initialize player
+    _audioPlayer = AudioPlayer(); 
     _initFallDetection();
   }
 
   void _initFallDetection() {
-    _accelerometerSubscription = accelerometerEvents.listen((AccelerometerEvent event) {
+    _accelerometerSubscription = accelerometerEvents.listen((
+      AccelerometerEvent event,
+    ) {
       if (_isAlertActive) return;
 
       double magnitude = (event.x.abs() + event.y.abs() + event.z.abs());
@@ -200,7 +223,8 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
 
       if (_isFreeFalling && magnitude > _impactThreshold) {
         if (_freeFallTimestamp != null &&
-            DateTime.now().difference(_freeFallTimestamp!).inMilliseconds < _timeWindowMs) {
+            DateTime.now().difference(_freeFallTimestamp!).inMilliseconds <
+                _timeWindowMs) {
           _triggerEmergencyProtocol();
         }
         _isFreeFalling = false;
@@ -211,52 +235,52 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
   Future<void> _triggerEmergencyProtocol() async {
     if (_isAlertActive) return;
     setState(() => _isAlertActive = true);
-    
-    // 1. Play Siren on Loop
+
     try {
       await _audioPlayer.setAsset('assets/audio/siren.mp3');
-      await _audioPlayer.setLoopMode(LoopMode.one); // Loop forever
+      await _audioPlayer.setLoopMode(LoopMode.one); 
       _audioPlayer.play();
     } catch (e) {
       debugPrint("Audio error: $e");
     }
 
-    // 2. Vibrate
     Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 1);
 
-    // 3. Show Big Button Dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => EmergencyCountdownDialog(
-        onCancel: () {
-          _stopAlarm();
-          setState(() => _isAlertActive = false);
-        },
-        onTrigger: () {
-          _stopAlarm();
-          // Pass the phone number here (Change this to your emergency number)
-          _executeForceCall("+60123456789"); 
-        },
-      ),
+      builder:
+          (context) => EmergencyCountdownDialog(
+            onCancel: () {
+              _stopAlarm();
+              setState(() => _isAlertActive = false);
+            },
+            onTrigger: () {
+              _stopAlarm();
+              // --- UPDATED CALL LOGIC ---
+              _executeForceCall("+60175727549");
+            },
+          ),
     ).then((_) {
-       // Just in case dialog is closed via back button (though barrierDismissible prevents it)
-       if (_isAlertActive) {
-         _stopAlarm();
-         setState(() => _isAlertActive = false);
-       }
+      if (_isAlertActive) {
+        _stopAlarm();
+        setState(() => _isAlertActive = false);
+      }
     });
   }
 
   void _stopAlarm() {
     Vibration.cancel();
-    _audioPlayer.stop(); // Stop the siren
+    _audioPlayer.stop(); 
   }
 
+  // --- THIS IS THE FIXED FUNCTION ---
   Future<void> _executeForceCall(String phoneNumber) async {
-    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(launchUri)) {
-      await launchUrl(launchUri);
+    // FlutterPhoneDirectCaller automatically calls the number
+    // It requires the 'android.permission.CALL_PHONE' in AndroidManifest.xml
+    bool? res = await FlutterPhoneDirectCaller.callNumber(phoneNumber);
+    if (res == false) {
+      debugPrint("Failed to call");
     }
   }
 
@@ -274,10 +298,15 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
 class EmergencyCountdownDialog extends StatefulWidget {
   final VoidCallback onCancel;
   final VoidCallback onTrigger;
-  const EmergencyCountdownDialog({super.key, required this.onCancel, required this.onTrigger});
+  const EmergencyCountdownDialog({
+    super.key,
+    required this.onCancel,
+    required this.onTrigger,
+  });
 
   @override
-  State<EmergencyCountdownDialog> createState() => _EmergencyCountdownDialogState();
+  State<EmergencyCountdownDialog> createState() =>
+      _EmergencyCountdownDialogState();
 }
 
 class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
@@ -294,8 +323,8 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsRemaining == 1) {
         timer.cancel();
-        Navigator.pop(context); // Close dialog
-        widget.onTrigger(); // Call logic
+        Navigator.pop(context); 
+        widget.onTrigger(); 
       } else {
         setState(() => _secondsRemaining--);
       }
@@ -310,7 +339,6 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Using a full screen overlay look with a big central button
     return Scaffold(
       backgroundColor: Colors.red.shade900,
       body: SafeArea(
@@ -318,39 +346,41 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
           children: [
             const Spacer(flex: 1),
             const Text(
-              "FALL DETECTED!", 
+              "FALL DETECTED!",
               style: TextStyle(
-                color: Colors.white, 
-                fontSize: 32, 
-                fontWeight: FontWeight.bold
-              ), 
-              textAlign: TextAlign.center
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             const Text(
-              "Calling assistance in:", 
-              style: TextStyle(color: Colors.white70, fontSize: 18)
+              "Calling assistance in:",
+              style: TextStyle(color: Colors.white70, fontSize: 18),
             ),
             const SizedBox(height: 10),
             Text(
-              "$_secondsRemaining", 
+              "$_secondsRemaining",
               style: const TextStyle(
-                color: Colors.white, 
-                fontSize: 80, 
-                fontWeight: FontWeight.bold
-              )
+                color: Colors.white,
+                fontSize: 80,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const Spacer(flex: 1),
-            
-            // THE BIG CIRCLE BUTTON
+
             Center(
               child: SizedBox(
-                width: 250, // Massive width
-                height: 250, // Massive height
+                width: 330, 
+                height: 330, 
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent.shade400, // High contrast green for safety
-                    shape: const CircleBorder(), // Makes it a perfect circle
+                    backgroundColor:
+                        Colors
+                            .greenAccent
+                            .shade400, 
+                    shape: const CircleBorder(), 
                     elevation: 10,
                   ),
                   onPressed: () {
@@ -360,14 +390,18 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
                   child: const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.check_circle_outline, size: 60, color: Colors.black87),
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 60,
+                        color: Colors.black87,
+                      ),
                       SizedBox(height: 10),
                       Text(
                         "I'M OKAY",
                         style: TextStyle(
                           color: Colors.black87,
-                          fontSize: 28, 
-                          fontWeight: FontWeight.bold
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(

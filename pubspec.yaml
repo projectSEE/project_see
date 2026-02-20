@@ -73,6 +73,7 @@ dependencies:
   google_generative_ai: ^0.4.7
   android_intent_plus: ^6.0.0
   wakelock_plus: ^1.4.0
+  flutter_phone_direct_caller: ^2.2.1
 
 dev_dependencies:
   flutter_test:
