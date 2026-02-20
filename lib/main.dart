@@ -8,12 +8,22 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:vibration/vibration.dart';
 // import 'package:url_launcher/url_launcher.dart'; // No longer needed for calls
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart'; // <--- NEW IMPORT
+import 'package:firebase_auth/firebase_auth.dart'; // <--- NEW IMPORT
 import 'package:just_audio/just_audio.dart'; 
 import 'screens/awareness_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  
+  // Sign in anonymously to allow Storage access
+  try {
+    await FirebaseAuth.instance.signInAnonymously();
+    debugPrint("Signed in anonymously");
+  } catch (e) {
+    debugPrint("Failed to sign in anonymously: $e");
+  }
+
   runApp(const VisualAssistantApp());
 }
 

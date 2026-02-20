@@ -105,6 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _messages.add({
             'role': msg['role'] == 'assistant' ? 'model' : msg['role'],
             'text': msg['content']?.toString() ?? '',
+            'imageUrl': msg['imageUrl'], // <--- Add this
           });
         }
         // Switch to this topic for new messages
@@ -221,6 +222,7 @@ class _ChatScreenState extends State<ChatScreen> {
       messageContent, 
       hasImage: imageBytes != null,
       topicId: _currentTopicId,
+      imageBytes: imageBytes,
     );
 
     try {
@@ -844,10 +846,12 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (context, index) {
                 final msg = _messages[index];
                 final imageBytes = msg['imageBytes'] as Uint8List?;
+                final imageUrl = msg['imageUrl'] as String?;
                 return InteractiveMessageBubble(
                   role: msg['role'] ?? 'model',
                   text: msg['text'] ?? '',
                   imageBytes: imageBytes,
+                  imageUrl: imageUrl,
                   onTapReadAloud: () => _speak(msg['text'] ?? ''),
                   onDelete: () => _deleteMessage(index),
                   onImageTap: imageBytes != null 
