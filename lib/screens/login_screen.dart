@@ -125,13 +125,14 @@ class _LoginScreenState extends State<LoginScreen> {
       // 2. Update display name
       await cred.user?.updateDisplayName(_fullNameController.text.trim());
 
-      // 3. Save profile to Firestore
-      await _firestoreService.updateUserProfile(cred.user!.uid, {
+      // 3. Save profile to Firestore (keyed by full name)
+      await _firestoreService.updateUserProfile(_fullNameController.text.trim(), {
         'fullName': _fullNameController.text.trim(),
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
         'emergencyContactName': _emergencyNameController.text.trim(),
         'emergencyContactPhone': _emergencyPhoneController.text.trim(),
+        'uid': cred.user!.uid,
         'createdAt': DateTime.now().toIso8601String(),
       });
 

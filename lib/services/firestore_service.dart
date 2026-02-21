@@ -231,9 +231,9 @@ class FirestoreService {
   // ==================== User Settings ====================
 
   /// Get user accessibility settings.
-  Future<Map<String, dynamic>> getAccessibilitySettings(String userId) async {
+  Future<Map<String, dynamic>> getAccessibilitySettings(String fullName) async {
     try {
-      final doc = await _db.collection('users').doc(userId).get();
+      final doc = await _db.collection('users').doc(fullName).get();
       
       if (doc.exists && doc.data()?['settings'] != null) {
         return Map<String, dynamic>.from(doc.data()!['settings']);
@@ -255,22 +255,23 @@ class FirestoreService {
 
   /// Update user accessibility settings.
   Future<void> updateAccessibilitySettings(
-    String userId,
+    String fullName,
     Map<String, dynamic> settings,
   ) async {
-    await _db.collection('users').doc(userId).set({
+    await _db.collection('users').doc(fullName).set({
       'settings': settings,
       'lastUpdated': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
   /// Update user profile.
+  /// Document ID is the user's full name: users/{fullName}/profile
   Future<void> updateUserProfile(
-    String userId,
+    String fullName,
     Map<String, dynamic> data,
   ) async {
     data['lastActive'] = FieldValue.serverTimestamp();
-    await _db.collection('users').doc(userId).set(
+    await _db.collection('users').doc(fullName).set(
       {'profile': data},
       SetOptions(merge: true),
     );
@@ -317,14 +318,14 @@ class FirestoreService {
 
   /// Build context for AI including user settings and recent messages.
   Future<Map<String, dynamic>> buildContextForAI(
-    String userId, {
+    String fullName, {
     double? latitude,
     double? longitude,
   }) async {
     final context = <String, dynamic>{};
 
     try {
-      context['accessibilitySettings'] = await getAccessibilitySettings(userId);
+      context['accessibilitySettings'] = await getAccessibilitySettings(fullName);
 
       // Get nearby POIs if location provided
       if (latitude != null && longitude != null) {
