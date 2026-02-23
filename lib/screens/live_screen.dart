@@ -1,18 +1,18 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
-import 'package:permission_handler/permission_handler.dart';
-import '../services/tts_service.dart';
-import '../services/gemini_live_service.dart';
-import '../services/audio_stream_service.dart';
-import '../services/audio_player_service.dart';
-import '../services/unified_media_stream_service.dart';
-import '../widgets/camera_preview.dart';
 
-/// Live Screen — Real-time AI assistant via Gemini Live API
-/// Provides continuous audio/video conversation with Gemini.
+import 'package:camera/camera.dart';
+import 'package:firebase_ai/firebase_ai.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../services/accessible_live_connector.dart';
+import '../utils/audio_input.dart';
+import '../utils/audio_output.dart';
+
+/// Production Live Screen — Accessible AI assistant via Gemini Live API.
+///
+/// Full-featured, polished version without debug panels.
+/// Features: hardware AEC, barge-in, earcons, PTT mode, VAD tuning.
 class LiveScreen extends StatefulWidget {
   const LiveScreen({super.key});
 
@@ -21,335 +21,407 @@ class LiveScreen extends StatefulWidget {
 }
 
 class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
-  // Camera
+  // ── Core ──
+  LiveSession? _session;
   CameraController? _cameraController;
-  List<CameraDescription> _cameras = [];
-  CameraDescription? _selectedCamera;
+  final AudioInput _audioInput = AudioInput();
+  final AudioOutput _audioOutput = AudioOutput();
+  static const _imageChannel = MethodChannel('image_converter_channel');
 
-  // Services
-  final TTSService _ttsService = TTSService();
-  final GeminiLiveService _geminiLiveService = GeminiLiveService();
-  final AudioStreamService _audioStreamService = AudioStreamService();
-  final AudioPlayerService _audioPlayerService = AudioPlayerService();
-  final UnifiedMediaStreamService _unifiedMediaService = UnifiedMediaStreamService();
-
-  // State
-  bool _isInitialized = false;
+  // ── State ──
   bool _isConnected = false;
   bool _isConnecting = false;
-  bool _hasPermission = false;
+  bool _isStreamingAudio = false;
+  bool _isStreamingVideo = false;
+  late final Future<void> _cameraReady;
+
+  CameraImage? _latestFrame;
+  Timer? _videoSendTimer;
+  bool _isConvertingFrame = false;
+
+  // ── Accessibility ──
+  bool _aiIsSpeaking = false;
+  bool _pushToTalkMode = false;
+  bool _pttPressed = false;
+  bool _isFirstAudioChunk = true;
   String _statusMessage = 'Initializing...';
+
+  // ═══════════════════════════════════════════════════
+  // EARCONS (haptic + audio cues for blind users)
+  // ═══════════════════════════════════════════════════
+
+  void _playListeningEarcon() {
+    HapticFeedback.lightImpact();
+    SystemSound.play(SystemSoundType.click);
+  }
+
+  void _playProcessingEarcon() {
+    HapticFeedback.mediumImpact();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      HapticFeedback.mediumImpact();
+    });
+  }
+
+  void _playResponseEarcon() {
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.click);
+  }
+
+  // ═══════════════════════════════════════════════════
+  // LIFECYCLE
+  // ═══════════════════════════════════════════════════
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeApp();
+    _cameraReady = _initCamera();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _disconnect();
+    _stopAll();
     _cameraController?.dispose();
-    _ttsService.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive) {
-      _disconnect();
-      _cameraController?.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initializeCamera();
+      _stopAll();
+    } else if (state == AppLifecycleState.resumed && !_isConnected) {
+      _cameraReady = _initCamera();
     }
   }
 
-  // ─── INITIALIZATION ─────────────────────────────────────
-
-  Future<void> _initializeApp() async {
-    final cameraStatus = await Permission.camera.request();
-    final micStatus = await Permission.microphone.request();
-
-    if (cameraStatus.isGranted && micStatus.isGranted) {
-      setState(() {
-        _hasPermission = true;
-        _statusMessage = 'Initializing camera...';
-      });
-
-      await _ttsService.initialize();
-      await _initializeCamera();
-
-      await _ttsService.speak(
-        'Live assistant ready. Tap the button below to start a conversation with Gemini.',
-      );
-    } else {
-      setState(() => _statusMessage = 'Camera and microphone permissions required');
-    }
-  }
-
-  Future<void> _initializeCamera() async {
-    _cameras = await availableCameras();
-
-    if (_cameras.isEmpty) {
-      setState(() => _statusMessage = 'No camera found');
-      return;
-    }
-
-    _selectedCamera = _cameras.firstWhere(
-      (camera) => camera.lensDirection == CameraLensDirection.back,
-      orElse: () => _cameras.first,
-    );
-
-    _cameraController = CameraController(
-      _selectedCamera!,
-      ResolutionPreset.medium,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
-
+  Future<void> _initCamera() async {
     try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        _setStatus('No camera found');
+        return;
+      }
+      final cam = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      _cameraController = CameraController(
+        cam,
+        ResolutionPreset.low,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
       await _cameraController!.initialize();
-
-      // Start image stream to feed frames to Gemini when connected
-      await _cameraController!.startImageStream(_processFrame);
-
-      setState(() {
-        _isInitialized = true;
-        _statusMessage = 'Ready — tap START to connect';
-      });
+      if (mounted) {
+        setState(() {});
+        _setStatus('Ready — tap START to connect');
+      }
     } catch (e) {
-      setState(() => _statusMessage = 'Camera error: $e');
+      _setStatus('Camera error');
+      debugPrint('❌ Camera init: $e');
     }
   }
 
-  void _processFrame(CameraImage image) {
-    // If connected, feed frames to unified media service
-    if (_isConnected && _unifiedMediaService.isActive) {
-      _unifiedMediaService.processCameraFrame(image).catchError((e) {
-        debugPrint('❌ processCameraFrame error: $e');
-      });
-    }
+  void _setStatus(String msg) {
+    if (mounted) setState(() => _statusMessage = msg);
   }
 
-  // ─── LIVE MODE CONTROLS ─────────────────────────────────
+  // ═══════════════════════════════════════════════════
+  // CONNECT (AccessibleLiveConnector with VAD config)
+  // ═══════════════════════════════════════════════════
 
   Future<void> _connect() async {
-    if (_isConnecting) return;
-
+    if (_isConnected || _isConnecting) return;
     setState(() {
       _isConnecting = true;
       _statusMessage = 'Connecting to Gemini Live...';
     });
 
-    await _ttsService.speak('Connecting to Gemini Live...');
+    try {
+      final connector = AccessibleLiveConnector(
+        model: 'gemini-live-2.5-flash-native-audio',
+        location: 'us-central1',
+        systemInstruction: Content.text('''
+You are a vision assistant for blind users. You are their eyes.
+
+Response rules:
+1. Use directions: ahead, left, right, above, below
+2. Estimate distances: very close (<1m), close (3m), medium (5m), far (10m+)
+3. Prioritize hazards: stairs, steps, vehicles, obstacles, holes
+4. Keep each response under 20 words, be concise
+5. Speak clearly and at moderate pace
+6. Focus on what matters for safe navigation
+'''),
+        liveGenerationConfig: LiveGenerationConfig(
+          responseModalities: [ResponseModalities.audio],
+          speechConfig: SpeechConfig(voiceName: 'Aoede'),
+        ),
+        startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+        endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
+        silenceDurationMs: 1500,
+      );
+
+      final session = await connector.connect();
+      _session = session;
+      _isConnected = true;
+      _isConnecting = false;
+      _setStatus('Live — speaking to Gemini');
+
+      _playListeningEarcon();
+      _receiveLoop();
+    } catch (e) {
+      debugPrint('❌ Connect error: $e');
+      _isConnecting = false;
+      _setStatus('Connection error — tap to retry');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // RECEIVE LOOP (barge-in + earcons)
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _receiveLoop() async {
+    while (_isConnected && _session != null) {
+      try {
+        await for (final response in _session!.receive()) {
+          if (!_isConnected) break;
+
+          final msg = response.message;
+
+          if (msg is LiveServerContent) {
+            // Barge-in: AI interrupted by user
+            if (msg.interrupted == true) {
+              await _audioOutput.stopImmediately();
+              _aiIsSpeaking = false;
+              _isFirstAudioChunk = true;
+              if (mounted) setState(() {});
+              continue;
+            }
+
+            final parts = msg.modelTurn?.parts;
+            if (parts != null) {
+              for (final part in parts) {
+                if (part is InlineDataPart && part.mimeType.contains('audio')) {
+                  if (_isFirstAudioChunk) {
+                    _isFirstAudioChunk = false;
+                    _playResponseEarcon();
+                    _aiIsSpeaking = true;
+                    _audioOutput.init();
+                    if (mounted) setState(() => _statusMessage = 'AI speaking...');
+                  }
+                  _audioOutput.addAudioStream(part.bytes);
+                }
+              }
+            }
+
+            if (msg.turnComplete == true) {
+              _aiIsSpeaking = false;
+              _isFirstAudioChunk = true;
+              _playListeningEarcon();
+              if (mounted) setState(() => _statusMessage = 'Live — listening');
+            }
+          } else if (msg.runtimeType.toString() == 'LiveServerSetupComplete') {
+            _playListeningEarcon();
+          }
+        }
+        if (_isConnected) {
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+      } catch (e) {
+        if (!_isConnected) break;
+        if (e.toString().contains('Closed')) {
+          _stopAll();
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // START / STOP
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _startAll() async {
+    if (!_isConnected) await _connect();
+    if (!_isConnected) return;
+
+    await _cameraReady;
+    _startAudioStream();
+    _startVideoStream();
+  }
+
+  Future<void> _startAudioStream() async {
+    if (_isStreamingAudio) return;
+    _isStreamingAudio = true;
+    _audioOutput.init();
 
     try {
-      await _geminiLiveService.initialize();
-      await _audioPlayerService.initialize();
-
-      // Gemini returns audio directly
-      _geminiLiveService.onAudioResponse = (audioData) {
-        _audioPlayerService.queueAudio(audioData);
-      };
-
-      // Fallback: text response via TTS
-      _geminiLiveService.onResponse = (text) {
-        debugPrint('📝 Text fallback: $text');
-        _ttsService.speak(text);
-      };
-
-      _geminiLiveService.onError = (error) {
-        _ttsService.speak('Error: $error');
-      };
-
-      // When ready, start streaming
-      _geminiLiveService.onReady = () async {
-        debugPrint('🚀 Gemini ready — starting unified A/V streaming');
-
-        await Future.delayed(const Duration(milliseconds: 300));
-        await _sendInitialFrame();
-        _geminiLiveService.sendText('Describe what you see briefly. What is in front of me?');
-
-        await Future.delayed(const Duration(seconds: 1));
-
-        _unifiedMediaService.start();
-
-        if (_unifiedMediaService.mediaStream != null) {
-          _geminiLiveService.sendMediaStream(_unifiedMediaService.mediaStream!);
-          debugPrint('📹 Unified A/V stream connected');
-        }
-
-        final audioStream = await _audioStreamService.startRecordingStream();
-        if (audioStream != null) {
-          audioStream.listen((audioData) {
-            _unifiedMediaService.addAudio(audioData);
-          });
-          debugPrint('🎤 Audio feeding to unified stream');
-        }
-
-        debugPrint('✅ Live mode active!');
-      };
-
-      await _geminiLiveService.connect();
-
-      if (_geminiLiveService.isConnected) {
-        await _ttsService.speak('Connected! I can now see and hear you.');
-        setState(() {
-          _isConnected = true;
-          _isConnecting = false;
-          _statusMessage = 'Live — speaking to Gemini';
-        });
-      } else {
-        setState(() {
-          _isConnecting = false;
-          _statusMessage = 'Failed to connect';
-        });
-        await _ttsService.speak('Failed to connect. Please try again.');
+      final audioStream = await _audioInput.startRecordingStream();
+      if (audioStream == null) {
+        _isStreamingAudio = false;
+        return;
       }
+      audioStream.listen(
+        (data) async {
+          if (!_isConnected || _session == null) return;
+
+          // Hardware AEC handles echo — mic stays active for barge-in
+          // PTT: only send when button is held
+          if (_pushToTalkMode && !_pttPressed) return;
+
+          try {
+            await _session!.sendAudioRealtime(
+              InlineDataPart('audio/pcm;rate=16000', data),
+            );
+          } catch (e) {
+            if (e.toString().contains('Closed')) {
+              _isStreamingAudio = false;
+            }
+          }
+        },
+        onError: (e) => debugPrint('❌ Mic: $e'),
+      );
     } catch (e) {
-      debugPrint('❌ Connection error: $e');
-      setState(() {
-        _isConnecting = false;
-        _statusMessage = 'Connection error';
-      });
-      await _ttsService.speak('Error connecting to Gemini Live');
+      debugPrint('❌ Mic start: $e');
+      _isStreamingAudio = false;
     }
   }
 
-  Future<void> _disconnect() async {
-    _unifiedMediaService.stop();
-    await _audioStreamService.stopRecording();
-    await _audioPlayerService.stop();
-    await _geminiLiveService.disconnect();
+  void _startVideoStream() {
+    if (_isStreamingVideo) return;
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
 
-    if (mounted) {
-      setState(() {
-        _isConnected = false;
-        _statusMessage = 'Disconnected';
-      });
+    _isStreamingVideo = true;
+
+    _cameraController!.startImageStream((CameraImage image) {
+      _latestFrame = image;
+    });
+
+    _videoSendTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _convertAndSendFrame();
+    });
+  }
+
+  Future<void> _convertAndSendFrame() async {
+    final session = _session;
+    final frame = _latestFrame;
+    if (!_isConnected || !_isStreamingVideo || session == null) return;
+    if (frame == null || _isConvertingFrame) return;
+
+    _isConvertingFrame = true;
+    try {
+      final jpegBytes = await _imageChannel.invokeMethod(
+        'convertYuvToJpeg',
+        {
+          'width': frame.width,
+          'height': frame.height,
+          'yPlane': frame.planes[0].bytes,
+          'uPlane': frame.planes.length > 1 ? frame.planes[1].bytes : null,
+          'vPlane': frame.planes.length > 2 ? frame.planes[2].bytes : null,
+          'yRowStride': frame.planes[0].bytesPerRow,
+          'uvPixelStride':
+              frame.planes.length > 1 ? frame.planes[1].bytesPerPixel ?? 1 : 1,
+          'quality': 40,
+        },
+      );
+
+      if (!_isConnected || _session == null) return;
+
+      await session.sendVideoRealtime(
+        InlineDataPart('image/jpeg', jpegBytes),
+      );
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('Closed')) {
+        _isStreamingVideo = false;
+        return;
+      }
+    } finally {
+      _isConvertingFrame = false;
     }
   }
 
-  Future<void> _sendInitialFrame() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+  Future<void> _sendTextPrompt(String text) async {
+    if (!_isConnected || _session == null) return;
+    try {
+      await _session!.send(
+        input: Content.text(text),
+        turnComplete: true,
+      );
+    } catch (e) {
+      debugPrint('❌ Send: $e');
+    }
+  }
+
+  Future<void> _sendTurnComplete() async {
+    if (!_isConnected || _session == null) return;
+    try {
+      await _session!.send(
+        input: Content.text(''),
+        turnComplete: true,
+      );
+    } catch (e) {
+      debugPrint('❌ turnComplete: $e');
+    }
+  }
+
+  void _stopAll() {
+    _isStreamingAudio = false;
+    _isStreamingVideo = false;
+    _videoSendTimer?.cancel();
+    _videoSendTimer = null;
+    _latestFrame = null;
+    _isConvertingFrame = false;
+    _aiIsSpeaking = false;
 
     try {
-      final wasStreaming = _cameraController!.value.isStreamingImages;
-      if (wasStreaming) await _cameraController!.stopImageStream();
+      _cameraController?.stopImageStream();
+    } catch (_) {}
 
-      final XFile imageFile = await _cameraController!.takePicture();
-      final Uint8List imageBytes = await File(imageFile.path).readAsBytes();
-      await _geminiLiveService.sendImage(imageBytes);
+    _audioInput.stopRecording();
+    _audioOutput.stop();
 
-      try { await File(imageFile.path).delete(); } catch (_) {}
-
-      if (wasStreaming) {
-        await _cameraController!.startImageStream(_processFrame);
-      }
-    } catch (e) {
-      debugPrint('❌ Send initial frame error: $e');
-    }
+    _isConnected = false;
+    _isConnecting = false;
+    _session?.close();
+    _session = null;
+    if (mounted) setState(() => _statusMessage = 'Disconnected');
   }
 
-  // ─── BUILD ─────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════
+  // BUILD UI — Clean production interface
+  // ═══════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: _hasPermission ? _buildMainContent() : _buildPermissionRequest(),
-      ),
-    );
-  }
-
-  Widget _buildPermissionRequest() {
-    return Semantics(
-      label: 'Camera and microphone permissions are required for live mode',
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.videocam_off, size: 80, color: Colors.white54),
-              const SizedBox(height: 24),
-              const Text(
-                'Permissions Required',
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Live mode needs camera and microphone access to communicate with Gemini AI.',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              Semantics(
-                button: true,
-                label: 'Open device settings to grant permissions',
-                child: ElevatedButton(
-                  onPressed: () => openAppSettings(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    minimumSize: const Size(double.infinity, 72),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: const Text('Open Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
+        child: Column(
+          children: [
+            _buildStatusBar(),
+            Expanded(child: _buildCameraPreview()),
+            if (_isConnected) _buildQuickPrompts(),
+            _buildControlPanel(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildMainContent() {
-    return Column(
-      children: [
-        // Status bar
-        _buildStatusBar(),
-
-        // Camera preview
-        Expanded(
-          child: _isInitialized && _cameraController != null
-              ? CameraPreviewWidget(
-                  controller: _cameraController!,
-                  obstacles: const [],
-                )
-              : Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      const SizedBox(height: 16),
-                      Text(_statusMessage, style: const TextStyle(color: Colors.white70, fontSize: 18)),
-                    ],
-                  ),
-                ),
-        ),
-
-        // Controls
-        _buildControlPanel(),
-      ],
-    );
-  }
-
+  // ── Status bar ──
   Widget _buildStatusBar() {
     final Color statusColor = _isConnected
-        ? Colors.green
+        ? (_aiIsSpeaking ? Colors.orange : Colors.green)
         : (_isConnecting ? Colors.orange : Colors.grey);
-    final String statusText = _isConnected
-        ? 'Live — speaking to Gemini'
-        : (_isConnecting ? 'Connecting...' : 'Not connected');
 
     return Semantics(
       liveRegion: true,
-      label: 'Live status: $statusText',
+      label: 'Live status: $_statusMessage',
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -359,8 +431,10 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
         ),
         child: Row(
           children: [
+            // Status dot
             Container(
-              width: 28, height: 28,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: statusColor,
@@ -369,17 +443,31 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
                     : [],
               ),
               child: Icon(
-                _isConnected ? Icons.mic : (_isConnecting ? Icons.sync : Icons.mic_off),
-                color: Colors.white, size: 16,
+                _isConnected
+                    ? (_aiIsSpeaking ? Icons.volume_up : Icons.mic)
+                    : (_isConnecting ? Icons.sync : Icons.mic_off),
+                color: Colors.white,
+                size: 16,
               ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                statusText,
+                _statusMessage,
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
               ),
             ),
+            // PTT toggle
+            if (_isConnected)
+              IconButton(
+                icon: Icon(
+                  _pushToTalkMode ? Icons.touch_app : Icons.mic,
+                  color: _pushToTalkMode ? Colors.orange : Colors.white70,
+                ),
+                tooltip: _pushToTalkMode ? 'Push-to-Talk ON' : 'Always Listen',
+                onPressed: () => setState(() => _pushToTalkMode = !_pushToTalkMode),
+              ),
+            // LIVE badge
             if (_isConnected)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -402,6 +490,71 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
     );
   }
 
+  // ── Camera preview ──
+  Widget _buildCameraPreview() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: Colors.white),
+            const SizedBox(height: 16),
+            Text(_statusMessage, style: const TextStyle(color: Colors.white70, fontSize: 18)),
+          ],
+        ),
+      );
+    }
+    return Stack(
+      children: [
+        Center(child: CameraPreview(_cameraController!)),
+        // Mode indicator overlay (minimal)
+        if (_isConnected)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _pushToTalkMode ? '🎤 Push-to-Talk' : '👂 Always Listening',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Quick prompts ──
+  Widget _buildQuickPrompts() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          _promptChip('What do you see?'),
+          _promptChip('Any obstacles?'),
+          _promptChip('Read any text'),
+          _promptChip('Describe the scene'),
+        ],
+      ),
+    );
+  }
+
+  Widget _promptChip(String text) {
+    return ActionChip(
+      label: Text(text, style: const TextStyle(fontSize: 12)),
+      onPressed: () => _sendTextPrompt(text),
+      backgroundColor: Colors.blue.shade800,
+      labelStyle: const TextStyle(color: Colors.white),
+    );
+  }
+
+  // ── Control panel (START/STOP + PTT hold button + Back) ──
   Widget _buildControlPanel() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -412,19 +565,88 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Primary: START/END LIVE button
+          // PTT hold button (visible when PTT mode is on and connected)
+          if (_pushToTalkMode && _isConnected) ...[
+            Semantics(
+              button: true,
+              label: 'Hold to talk. Release to send.',
+              child: GestureDetector(
+                onLongPressStart: (_) {
+                  setState(() => _pttPressed = true);
+                  _playListeningEarcon();
+                },
+                onLongPressEnd: (_) {
+                  setState(() => _pttPressed = false);
+                  _sendTurnComplete();
+                  _playProcessingEarcon();
+                },
+                onLongPressCancel: () => setState(() => _pttPressed = false),
+                onTapDown: (_) {
+                  setState(() => _pttPressed = true);
+                  _playListeningEarcon();
+                },
+                onTapUp: (_) {
+                  setState(() => _pttPressed = false);
+                  _sendTurnComplete();
+                  _playProcessingEarcon();
+                },
+                onTapCancel: () => setState(() => _pttPressed = false),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: double.infinity,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    gradient: _pttPressed
+                        ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFFF5252)])
+                        : const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF42A5F5)]),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (_pttPressed ? Colors.red : Colors.blue).withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _pttPressed ? Icons.mic : Icons.mic_off,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          _pttPressed ? 'SPEAKING...' : 'HOLD TO TALK',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // START / END LIVE button
           Semantics(
             button: true,
             label: _isConnected
-                ? 'End live conversation with Gemini'
-                : 'Start live conversation with Gemini using voice and camera',
+                ? 'End live conversation'
+                : 'Start live conversation with voice and camera',
             child: GestureDetector(
               onTap: () async {
                 if (_isConnected) {
-                  await _disconnect();
-                  await _ttsService.speak('Live mode stopped.');
+                  _stopAll();
                 } else {
-                  await _connect();
+                  await _startAll();
                 }
               },
               child: AnimatedContainer(
@@ -452,7 +674,8 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             SizedBox(
-                              width: 24, height: 24,
+                              width: 24,
+                              height: 24,
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
                             ),
                             SizedBox(width: 14),
@@ -464,7 +687,8 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
                           children: [
                             Icon(
                               _isConnected ? Icons.stop : Icons.videocam,
-                              color: Colors.white, size: 32,
+                              color: Colors.white,
+                              size: 32,
                             ),
                             const SizedBox(width: 14),
                             Text(
@@ -482,10 +706,10 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
           // Back button
           Semantics(
             button: true,
-            label: 'Go back to obstacle detector menu',
+            label: 'Go back to main menu',
             child: GestureDetector(
               onTap: () async {
-                if (_isConnected) await _disconnect();
+                if (_isConnected) _stopAll();
                 if (mounted) Navigator.pop(context);
               },
               child: Container(

@@ -278,9 +278,13 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
         labels: labels,
       );
 
+      // Don't queue new announcements while TTS is still speaking
+      if (_ttsService.isSpeaking) return;
+
       // Speak aggregated context based on priority
-      if (context.priority == ContextPriority.high) {
-        // High priority: always speak (very close obstacle)
+      if (context.priority == ContextPriority.high &&
+          _contextAggregator.isSignificantChange(context.summary)) {
+        // High priority: very close obstacle — speak urgently if new
         await _ttsService.speakUrgent(context.summary);
       } else if (context.priority == ContextPriority.medium &&
           _contextAggregator.isSignificantChange(context.summary)) {

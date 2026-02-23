@@ -164,7 +164,7 @@ class _LiveTestScreenState extends State<LiveTestScreen> {
 
     try {
       final connector = AccessibleLiveConnector(
-        model: 'gemini-2.0-flash-live-preview-04-09',
+        model: 'gemini-live-2.5-flash-native-audio',
         location: 'us-central1',
         systemInstruction: Content.text('''
 You are a vision assistant for blind users. You are their eyes.
@@ -444,6 +444,20 @@ Response rules:
     }
   }
 
+  /// Send turnComplete signal — used by PTT to tell server "I'm done speaking"
+  Future<void> _sendTurnComplete() async {
+    if (!_isConnected || _session == null) return;
+    try {
+      await _session!.send(
+        input: Content.text(''),
+        turnComplete: true,
+      );
+      _log('📤 turnComplete sent');
+    } catch (e) {
+      _log('❌ turnComplete: $e', 'error');
+    }
+  }
+
   // ═══════════════════════════════════════════════════
   // STOP
   // ═══════════════════════════════════════════════════
@@ -572,30 +586,63 @@ Response rules:
                 if (_pushToTalkMode && _isConnected) ...[
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTapDown: (_) {
+                    // Use long press for reliable hold-to-talk
+                    onLongPressStart: (_) {
                       setState(() => _pttPressed = true);
                       _playListeningEarcon();
                       _log('🎤 PTT: SPEAKING');
                     },
+                    onLongPressEnd: (_) {
+                      setState(() => _pttPressed = false);
+                      _sendTurnComplete(); // ★ Tell server: "I'm done, respond!"
+                      _playProcessingEarcon();
+                      _log('🎤 PTT: RELEASED → turnComplete sent');
+                    },
+                    onLongPressCancel: () {
+                      setState(() => _pttPressed = false);
+                    },
+                    // Also handle quick tap down/up for instant response
+                    onTapDown: (_) {
+                      setState(() => _pttPressed = true);
+                      _playListeningEarcon();
+                    },
                     onTapUp: (_) {
                       setState(() => _pttPressed = false);
+                      _sendTurnComplete(); // ★ Tell server: "I'm done, respond!"
                       _playProcessingEarcon();
-                      _log('🎤 PTT: RELEASED');
                     },
                     onTapCancel: () {
                       setState(() => _pttPressed = false);
                     },
                     child: Container(
-                      width: 80,
-                      height: 48,
+                      width: 120,
+                      height: 64,
                       decoration: BoxDecoration(
                         color: _pttPressed ? Colors.red : Colors.blue,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
                       ),
                       child: Center(
-                        child: Icon(
-                          _pttPressed ? Icons.mic : Icons.mic_off,
-                          color: Colors.white,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _pttPressed ? Icons.mic : Icons.mic_off,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            Text(
+                              _pttPressed ? 'TALKING' : 'HOLD',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

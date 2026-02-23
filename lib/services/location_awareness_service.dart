@@ -13,7 +13,7 @@ class NearbyPOI {
   final double lat;
   final double lng;
   final double distance; // in meters
-  final String direction; // 前方/左侧/右侧/后方
+  final String direction; // ahead/left/right/behind
 
   NearbyPOI({
     required this.name,
@@ -26,9 +26,9 @@ class NearbyPOI {
 
   String toVoiceAnnouncement() {
     final dist = distance < 100 
-        ? '${distance.round()}米' 
-        : '${(distance / 100).round() * 100}米';
-    return '$direction$dist有$name';
+        ? '${distance.round()} meters' 
+        : '${(distance / 100).round() * 100} meters';
+    return '$name, $dist $direction';
   }
 }
 
@@ -64,7 +64,7 @@ class LocationAwarenessService {
     _isExploring = true;
     _announcedPOIs.clear();
     
-    await _ttsService.speak('探索模式已开启。我会告诉你周围有什么。');
+    await _ttsService.speak('Explore mode is on. I will tell you what is around you.');
     
     // Start position tracking
     _positionSubscription = Geolocator.getPositionStream(
@@ -87,7 +87,7 @@ class LocationAwarenessService {
     _positionSubscription?.cancel();
     _positionSubscription = null;
     _announcedPOIs.clear();
-    _ttsService.speak('探索模式已关闭');
+    _ttsService.speak('Explore mode is off.');
   }
 
   /// Handle position updates
@@ -138,7 +138,7 @@ class LocationAwarenessService {
             'radius': 100.0, // 100 meters radius
           },
         },
-        'languageCode': 'zh-CN',
+        'languageCode': 'en',
       });
 
       final response = await http.post(
@@ -177,7 +177,7 @@ class LocationAwarenessService {
         );
         
         final types = place['types'] as List? ?? [];
-        final typeStr = _getChineseType(types.isNotEmpty ? types.first : '');
+        final typeStr = _getEnglishType(types.isNotEmpty ? types.first : '');
         
         pois.add(NearbyPOI(
           name: place['displayName']?['text'] ?? '',
@@ -198,7 +198,7 @@ class LocationAwarenessService {
       final newPOIs = pois.where((p) => !_announcedPOIs.contains(p.name)).take(3).toList();
       
       if (newPOIs.isNotEmpty) {
-        final announcements = newPOIs.map((p) => p.toVoiceAnnouncement()).join('。');
+        final announcements = newPOIs.map((p) => p.toVoiceAnnouncement()).join('. ');
         debugPrint('📢 Announcing: $announcements');
         await _ttsService.speak(announcements);
         onAnnouncement?.call(announcements);
@@ -231,7 +231,7 @@ class LocationAwarenessService {
     return atan2(x, y) * 180 / pi;
   }
 
-  /// Get relative direction (前方/左侧/右侧/后方)
+  /// Get relative direction (ahead/left/right/behind)
   String _getDirection(double userLat, double userLng, double poiLat, double poiLng, double heading) {
     final bearing = _calculateBearing(userLat, userLng, poiLat, poiLng);
     var relative = bearing - heading;
@@ -240,29 +240,29 @@ class LocationAwarenessService {
     while (relative > 180) relative -= 360;
     while (relative < -180) relative += 360;
     
-    if (relative.abs() < 45) return '前方';
-    if (relative.abs() > 135) return '后方';
-    if (relative > 0) return '右侧';
-    return '左侧';
+    if (relative.abs() < 45) return 'ahead';
+    if (relative.abs() > 135) return 'behind you';
+    if (relative > 0) return 'to your right';
+    return 'to your left';
   }
 
-  /// Convert place type to Chinese
-  String _getChineseType(String type) {
+  /// Convert place type to English label
+  String _getEnglishType(String type) {
     const Map<String, String> typeMap = {
-      'restaurant': '餐厅',
-      'cafe': '咖啡店',
-      'store': '商店',
-      'bank': '银行',
+      'restaurant': 'restaurant',
+      'cafe': 'cafe',
+      'store': 'store',
+      'bank': 'bank',
       'atm': 'ATM',
-      'hospital': '医院',
-      'pharmacy': '药店',
-      'bus_station': '公交站',
-      'subway_station': '地铁站',
-      'convenience_store': '便利店',
-      'supermarket': '超市',
-      'gas_station': '加油站',
+      'hospital': 'hospital',
+      'pharmacy': 'pharmacy',
+      'bus_station': 'bus station',
+      'subway_station': 'subway station',
+      'convenience_store': 'convenience store',
+      'supermarket': 'supermarket',
+      'gas_station': 'gas station',
     };
-    return typeMap[type] ?? '地点';
+    return typeMap[type] ?? 'place';
   }
 
   /// Dispose resources

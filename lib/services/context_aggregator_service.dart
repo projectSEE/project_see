@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+
 import '../models/obstacle_info.dart';
 import 'text_recognition_service.dart';
 import 'image_labeling_service.dart';
@@ -11,7 +11,7 @@ class ContextAggregatorService {
   String _lastContextSummary = '';
   
   // Minimum interval between full context updates (seconds)
-  static const int _updateIntervalSeconds = 3;
+  static const int _updateIntervalSeconds = 6;
   
   /// Generate a context summary from all available data
   ContextSummary aggregate({
@@ -85,9 +85,28 @@ class ContextAggregatorService {
   /// Check if the new context is significantly different
   bool isSignificantChange(String newSummary) {
     if (_lastContextSummary.isEmpty) return true;
-    
-    // Simple change detection - could be improved with NLP
-    return newSummary != _lastContextSummary;
+    if (newSummary == _lastContextSummary) return false;
+
+    // Extract the key content words (ignore positional changes like left/center/right)
+    final oldWords = _extractKeyWords(_lastContextSummary);
+    final newWords = _extractKeyWords(newSummary);
+
+    // Require at least one genuinely new keyword to count as significant
+    final newContent = newWords.difference(oldWords);
+    return newContent.isNotEmpty;
+  }
+
+  /// Extract key content words, ignoring positional/directional terms
+  Set<String> _extractKeyWords(String text) {
+    final ignore = {'on', 'your', 'the', 'a', 'an', 'is', 'in', 'at',
+        'left', 'right', 'center', 'ahead', 'nearby', 'close',
+        'very', 'other', 'objects'};
+    return text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 1 && !ignore.contains(w))
+        .toSet();
   }
   
   String _getDistanceDescription(double relativeSize) {
@@ -130,7 +149,7 @@ class ContextAggregatorService {
       final closest = obstacles.reduce((a, b) => 
         a.relativeSize > b.relativeSize ? a : b);
       
-      if (closest.relativeSize > 0.15) {
+      if (closest.relativeSize > 0.25) {
         return ContextPriority.high;
       }
     }

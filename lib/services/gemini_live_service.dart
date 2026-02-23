@@ -26,7 +26,7 @@ class GeminiLiveService {
   late final LiveGenerativeModel _liveModel = FirebaseAI.vertexAI(
     location: 'us-central1',
   ).liveGenerativeModel(
-    model: 'gemini-2.0-flash-live-preview-04-09',
+    model: 'gemini-live-2.5-flash-native-audio',
     systemInstruction: Content.text('''
 You are a vision assistant for blind users. Your job is to be their eyes.
 

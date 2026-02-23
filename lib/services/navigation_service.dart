@@ -32,13 +32,13 @@ class NavigationStep {
     String voice = instruction;
     
     // Add distance info
-    voice = '$distance后，$voice';
+    voice = 'In $distance, $voice';
     
     // Add safety warnings based on maneuver
     if (maneuver.contains('turn')) {
-      voice += '。转弯时注意周围车辆。';
+      voice += '. Watch out for vehicles when turning.';
     } else if (maneuver.contains('cross')) {
-      voice += '。过马路时请确认安全。';
+      voice += '. Please check for safety before crossing.';
     }
     
     return voice;
@@ -99,7 +99,7 @@ class NavigationService {
       debugPrint('📍 Location service enabled: $serviceEnabled');
       
       if (!serviceEnabled) {
-        await _ttsService.speak('位置服务未开启，正在打开设置');
+        await _ttsService.speak('Location service is not enabled. Opening settings.');
         debugPrint('❌ Location service not enabled, opening settings...');
         
         // Prompt user to enable location service
@@ -112,7 +112,7 @@ class NavigationService {
         // Check again
         serviceEnabled = await Geolocator.isLocationServiceEnabled();
         if (!serviceEnabled) {
-          await _ttsService.speak('请开启位置服务后点击重试');
+          await _ttsService.speak('Please enable location service and try again.');
           return null;
         }
       }
@@ -126,13 +126,13 @@ class NavigationService {
         permission = await Geolocator.requestPermission();
         debugPrint('📍 Permission after request: $permission');
         if (permission == LocationPermission.denied) {
-          await _ttsService.speak('位置权限被拒绝');
+          await _ttsService.speak('Location permission denied.');
           return null;
         }
       }
       
       if (permission == LocationPermission.deniedForever) {
-        await _ttsService.speak('位置权限被永久拒绝，请在设置中开启');
+        await _ttsService.speak('Location permission permanently denied. Please enable it in settings.');
         return null;
       }
 
@@ -156,15 +156,15 @@ class NavigationService {
         final lastPosition = await Geolocator.getLastKnownPosition();
         if (lastPosition != null) {
           debugPrint('✅ Using last known position: ${lastPosition.latitude}, ${lastPosition.longitude}');
-          await _ttsService.speak('使用上次已知位置');
+          await _ttsService.speak('Using last known location.');
           return lastPosition;
         }
-        await _ttsService.speak('获取位置超时，请确保在室外或靠近窗户');
+        await _ttsService.speak('Location request timed out. Please make sure you are outdoors or near a window.');
         return null;
       }
     } catch (e) {
       debugPrint('❌ Location error: $e');
-      await _ttsService.speak('获取位置失败');
+      await _ttsService.speak('Failed to get location.');
       return null;
     }
   }
@@ -195,7 +195,7 @@ class NavigationService {
           },
         },
         'maxResultCount': 10,
-        'languageCode': 'zh-CN',
+        'languageCode': 'en',
       });
 
       debugPrint('🌐 API URL: $url');
@@ -235,7 +235,7 @@ class NavigationService {
       }).toList();
     } catch (e) {
       debugPrint('❌ Search error: $e');
-      await _ttsService.speak('搜索出错');
+      await _ttsService.speak('Search error.');
       return [];
     }
   }
@@ -248,7 +248,7 @@ class NavigationService {
         'location=${location.latitude},${location.longitude}'
         '&radius=1000'
         '&keyword=$query'
-        '&language=zh-CN'
+        '&language=en'
         '&key=$_apiKey'
       );
 
@@ -282,7 +282,7 @@ class NavigationService {
         'origin=$originLat,$originLng'
         '&destination=$destLat,$destLng'
         '&mode=walking'
-        '&language=zh-CN'
+        '&language=en'
         '&key=$_apiKey'
       );
 
@@ -325,7 +325,7 @@ class NavigationService {
     );
 
     if (_steps.isEmpty) {
-      await _ttsService.speak('无法获取导航路线');
+      await _ttsService.speak('Unable to get navigation route.');
       return;
     }
 
@@ -333,7 +333,7 @@ class NavigationService {
     _isNavigating = true;
 
     // Announce start
-    await _ttsService.speak('开始导航到${destination.name}。共${_steps.length}步。');
+    await _ttsService.speak('Starting navigation to ${destination.name}. ${_steps.length} steps total.');
     await Future.delayed(const Duration(milliseconds: 500));
     
     // Announce first step
@@ -373,8 +373,8 @@ class NavigationService {
       if (_currentStepIndex >= _steps.length) {
         // Arrived at destination
         _isNavigating = false;
-        _ttsService.speak('已到达目的地');
-        onArrived?.call('已到达目的地');
+        _ttsService.speak('You have arrived at your destination.');
+        onArrived?.call('You have arrived at your destination.');
         stopNavigation();
       } else {
         // Move to next step
