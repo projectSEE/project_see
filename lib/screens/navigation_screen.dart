@@ -48,7 +48,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final permissionGranted = await _requestLocationPermission();
     if (!permissionGranted) {
       setState(() {
-        _locationError = '需要位置权限才能使用导航功能';
+        _locationError = 'Location permission is required for navigation';
       });
       return;
     }
@@ -59,14 +59,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _markers.add(Marker(
           markerId: const MarkerId('current'),
           position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-          infoWindow: const InfoWindow(title: '你的位置'),
+          infoWindow: const InfoWindow(title: 'Your Location'),
         ));
       });
     } else {
       setState(() {
-        _locationError = '无法获取当前位置';
+        _locationError = 'Unable to get current location';
       });
-      await _ttsService.speak('无法获取当前位置，请检查位置服务是否已开启');
+      await _ttsService.speak('Unable to get current location. Please check if location services are enabled.');
       return;
     }
 
@@ -94,12 +94,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
       setState(() => _lastAnnouncement = text);
     };
     
-    await _ttsService.speak('导航界面已打开。请输入目的地或开启探索模式。');
+    await _ttsService.speak('Navigation screen is open. Enter a destination or start explore mode.');
   }
 
   /// Request location permission with user-friendly messages
   Future<bool> _requestLocationPermission() async {
-    await _ttsService.speak('正在请求位置权限');
+    await _ttsService.speak('Requesting location permission');
     
     // Check current permission status
     var status = await Permission.locationWhenInUse.status;
@@ -118,30 +118,30 @@ class _NavigationScreenState extends State<NavigationScreen> {
     
     if (status.isGranted) {
       setState(() => _hasLocationPermission = true);
-      await _ttsService.speak('位置权限已授予');
+      await _ttsService.speak('Location permission granted');
       return true;
     }
     
     if (status.isPermanentlyDenied) {
-      await _ttsService.speak('位置权限被永久拒绝，请在设置中开启');
+      await _ttsService.speak('Location permission permanently denied. Please enable it in settings.');
       // Show dialog to open settings
       if (mounted) {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('需要位置权限'),
-            content: const Text('请在设置中开启位置权限以使用导航功能'),
+            title: const Text('Location Permission Required'),
+            content: const Text('Please enable location permission in settings to use navigation.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('取消'),
+                child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
                   openAppSettings();
                 },
-                child: const Text('打开设置'),
+                child: const Text('Open Settings'),
               ),
             ],
           ),
@@ -150,7 +150,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       return false;
     }
     
-    await _ttsService.speak('位置权限被拒绝，导航功能无法使用');
+    await _ttsService.speak('Location permission denied. Navigation is unavailable.');
     return false;
   }
 
@@ -158,7 +158,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (query.isEmpty) return;
     
     setState(() => _isSearching = true);
-    await _ttsService.speak('正在搜索$query');
+    await _ttsService.speak('Searching for $query');
     
     final results = await _navService.searchPlaces(query);
     
@@ -168,9 +168,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
     
     if (results.isEmpty) {
-      await _ttsService.speak('未找到结果');
+      await _ttsService.speak('No results found');
     } else {
-      await _ttsService.speak('找到${results.length}个结果。${results.first.name}');
+      await _ttsService.speak('Found ${results.length} results. ${results.first.name}');
     }
   }
 
@@ -189,7 +189,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       ));
     });
     
-    await _ttsService.speak('已选择${place.name}。正在获取路线。');
+    await _ttsService.speak('Selected ${place.name}. Getting route.');
     
     // Get route
     if (_currentPosition != null) {
@@ -256,14 +256,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _markers.removeWhere((m) => m.markerId.value == 'destination');
       _selectedDestination = null;
     });
-    _ttsService.speak('导航已停止');
+    _ttsService.speak('Navigation stopped');
   }
 
   void _showArrivedDialog(String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('🎉 已到达'),
+        title: const Text('🎉 Arrived'),
         content: Text(message),
         actions: [
           TextButton(
@@ -271,7 +271,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               Navigator.pop(context);
               _stopNavigation();
             },
-            child: const Text('确定'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -282,7 +282,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('无障碍导航'),
+        title: const Text('Navigation'),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
@@ -290,7 +290,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             IconButton(
               icon: const Icon(Icons.stop),
               onPressed: _stopNavigation,
-              tooltip: '停止导航',
+              tooltip: 'Stop Navigation',
             ),
         ],
       ),
@@ -338,7 +338,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           setState(() {});
         },
         icon: const Icon(Icons.explore),
-        label: const Text('开启探索模式 - 自动播报周边环境'),
+        label: const Text('Start Explore Mode — auto-announce surroundings'),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.orange[700],
           foregroundColor: Colors.white,
@@ -365,7 +365,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  '探索模式',
+                  'Explore Mode',
                   style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -375,7 +375,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   setState(() => _nearbyPOIs.clear());
                 },
                 icon: const Icon(Icons.stop, size: 18),
-                label: const Text('停止'),
+                label: const Text('Stop'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.orange[700],
@@ -398,7 +398,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           // Nearby POIs count
           const SizedBox(height: 8),
           Text(
-            '附近发现 ${_nearbyPOIs.length} 个地点',
+            '${_nearbyPOIs.length} places found nearby',
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
@@ -416,7 +416,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: '搜索目的地...',
+                hintText: 'Search destination...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -437,7 +437,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
             child: _isSearching
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('搜索'),
+                : const Text('Search'),
           ),
         ],
       ),
@@ -486,12 +486,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   _initialize();
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('重试'),
+                label: const Text('Retry'),
               ),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () => openAppSettings(),
-                child: const Text('打开设置'),
+                child: const Text('Open Settings'),
               ),
             ],
           ),
@@ -506,7 +506,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('正在获取位置...'),
+            Text('Getting location...'),
           ],
         ),
       );
@@ -533,7 +533,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       child: ElevatedButton.icon(
         onPressed: _isLoadingRoute ? null : _startNavigation,
         icon: const Icon(Icons.navigation),
-        label: Text('开始导航到 ${_selectedDestination!.name}'),
+        label: Text('Start navigation to ${_selectedDestination!.name}'),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green[700],
           foregroundColor: Colors.white,
@@ -578,7 +578,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ElevatedButton.icon(
                 onPressed: _navService.repeatInstruction,
                 icon: const Icon(Icons.replay),
-                label: const Text('重复'),
+                label: const Text('Repeat'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.blue[700],
@@ -589,7 +589,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ElevatedButton.icon(
                 onPressed: _navService.nextStep,
                 icon: const Icon(Icons.skip_next),
-                label: const Text('下一步'),
+                label: const Text('Next'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.blue[700],
@@ -600,7 +600,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ElevatedButton.icon(
                 onPressed: _stopNavigation,
                 icon: const Icon(Icons.stop),
-                label: const Text('停止'),
+                label: const Text('Stop'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,

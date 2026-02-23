@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.7.2
+  sdk: ^3.7.0
 
 dependencies:
   flutter:
@@ -39,7 +39,7 @@ dependencies:
   
   # Firebase for Vertex AI
   firebase_core: ^4.4.0
-  firebase_ai: ^3.3.0
+  firebase_ai: ^3.8.0
   
   # Speech recognition for voice input
   speech_to_text: ^7.0.0
@@ -73,6 +73,7 @@ dependencies:
   google_generative_ai: ^0.4.7
   android_intent_plus: ^6.0.0
   wakelock_plus: ^1.4.0
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:

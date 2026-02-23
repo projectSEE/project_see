@@ -4,6 +4,9 @@ import 'package:record/record.dart';
 
 /// Audio input helper for capturing PCM audio for Gemini Live API.
 /// Records 16-bit PCM mono at 16kHz sample rate.
+///
+/// Uses Android hardware AEC (Acoustic Echo Cancellation) via
+/// voiceCommunication audio source to prevent speaker → mic feedback.
 class AudioInput {
   final AudioRecorder _recorder = AudioRecorder();
   StreamSubscription<Uint8List>? _streamSubscription;
@@ -26,11 +29,24 @@ class AudioInput {
     _isRecording = true;
     
     // Configure for Live API requirements: 16-bit PCM mono at 16kHz
+    // ★ Uses voiceCommunication source for hardware AEC + noise suppression
     final stream = await _recorder.startStream(
       const RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         numChannels: 1,
         sampleRate: 16000,
+        androidConfig: AndroidRecordConfig(
+          // voiceCommunication enables Android's built-in:
+          //  • AcousticEchoCanceler — subtracts speaker output from mic
+          //  • NoiseSuppressor — reduces background noise
+          //  • AutomaticGainControl — normalizes volume
+          audioSource: AndroidAudioSource.voiceCommunication,
+          // modeInCommunication optimizes the audio pipeline for
+          // two-way communication (like a phone call)
+          audioManagerMode: AudioManagerMode.modeInCommunication,
+          // Don't mute other audio — we play AI speech through speaker
+          muteAudio: false,
+        ),
       ),
     );
 
