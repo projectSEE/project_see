@@ -46,6 +46,10 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
   bool _isFirstAudioChunk = true;
   String _statusMessage = 'Initializing...';
 
+  // ── Monitoring ──
+  Timer? _monitorTimer;
+  bool _isMonitoring = false;
+
   // ═══════════════════════════════════════════════════
   // EARCONS (haptic + audio cues for blind users)
   // ═══════════════════════════════════════════════════
@@ -357,6 +361,49 @@ Response rules:
     }
   }
 
+  // ── Traffic Light Monitoring ──
+  void _toggleTrafficMonitoring() {
+    if (_isMonitoring) {
+      // Stop monitoring
+      _monitorTimer?.cancel();
+      _monitorTimer = null;
+      setState(() => _isMonitoring = false);
+      _sendTextPrompt('Stop monitoring the traffic light. Thank you.');
+      return;
+    }
+
+    if (!_isConnected) return;
+
+    // Start monitoring
+    setState(() => _isMonitoring = true);
+    HapticFeedback.mediumImpact();
+
+    // Send initial prompt — tell current color once
+    _sendTextPrompt(
+      'Look at the traffic light in front of me and tell me its current color. '
+      'After this, I will keep checking with you. '
+      'Only speak up if the color has changed from the last time. '
+      'If it is the same color, just say nothing. '
+      'When it turns green, alert me clearly that it is safe to cross.'
+    );
+
+    // Re-prompt every 5 seconds — Gemini only speaks on change
+    _monitorTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!_isConnected || !_isMonitoring) {
+        _monitorTimer?.cancel();
+        _monitorTimer = null;
+        if (mounted) setState(() => _isMonitoring = false);
+        return;
+      }
+      _sendTextPrompt(
+        'Check the traffic light again. '
+        'Only tell me if the color has CHANGED since last time. '
+        'If it is still the same color, say absolutely nothing. '
+        'If it changed, tell me the new color and whether it is safe to cross.'
+      );
+    });
+  }
+
   /// Send ~2s of silence audio so VAD detects end of speech.
   /// Without this, releasing PTT stops sending data entirely,
   /// and the server never sees the speech→silence transition.
@@ -381,6 +428,9 @@ Response rules:
     _isStreamingVideo = false;
     _videoSendTimer?.cancel();
     _videoSendTimer = null;
+    _monitorTimer?.cancel();
+    _monitorTimer = null;
+    _isMonitoring = false;
     _latestFrame = null;
     _isConvertingFrame = false;
     _aiIsSpeaking = false;
@@ -696,9 +746,10 @@ Response rules:
         ),
         _actionButton(
           icon: Icons.traffic,
-          label: 'Traffic',
-          prompt: 'Watch the traffic light in front of me. Tell me its current color and tell me when it changes. Let me know when it is safe to cross the road.',
-          color: const Color(0xFFFF7043),
+          label: _isMonitoring ? 'Stop' : 'Traffic',
+          prompt: '',
+          color: _isMonitoring ? const Color(0xFFE53935) : const Color(0xFFFF7043),
+          onTapOverride: () => _toggleTrafficMonitoring(),
         ),
         _actionButton(
           icon: Icons.landscape,
@@ -715,12 +766,13 @@ Response rules:
     required String label,
     required String prompt,
     required Color color,
+    VoidCallback? onTapOverride,
   }) {
     return Semantics(
       button: true,
       label: '$label. Tap to ask: $prompt',
       child: GestureDetector(
-        onTap: () => _sendTextPrompt(prompt),
+        onTap: onTapOverride ?? () => _sendTextPrompt(prompt),
         child: Container(
           width: 90,
           height: 80,
