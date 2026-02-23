@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:camera/camera.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -369,6 +370,8 @@ Response rules:
       _monitorTimer = null;
       setState(() => _isMonitoring = false);
       _sendTextPrompt('Stop monitoring the traffic light. Thank you.');
+      // Show feedback dialog
+      _showTrafficFeedbackDialog();
       return;
     }
 
@@ -380,11 +383,9 @@ Response rules:
 
     // Send initial prompt — tell current color once
     _sendTextPrompt(
-      'Look at the traffic light in front of me and tell me its current color. '
-      'After this, I will keep checking with you. '
-      'Only speak up if the color has changed from the last time. '
-      'If it is the same color, just say nothing. '
-      'When it turns green, alert me clearly that it is safe to cross.'
+      'You are an assistant for a visually impaired pedestrian. Look directly ahead for the pedestrian crossing signal (the red or green man) and tell me its current colour. Keep your answers extremely brief.'
+      'After your first answer, stay completely silent unless the signal changes.'
+      'When the signal changes to green, say exactly this: The pedestrian signal is now green. Crucially: Do not tell me it is safe to cross. Simply report the signal status so I can use my own judgement and hearing to decide when to step into the road.'
     );
 
     // Re-prompt every 5 seconds — Gemini only speaks on change
@@ -402,6 +403,80 @@ Response rules:
         'If it changed, tell me the new color and whether it is safe to cross.'
       );
     });
+  }
+
+  // ── Traffic Feedback Dialog ──
+  void _showTrafficFeedbackDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Traffic Light Monitoring',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Was this successful?',
+          style: TextStyle(color: Colors.white70, fontSize: 18),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _uploadTrafficFeedback(false);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE53935).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE53935).withValues(alpha: 0.4)),
+              ),
+              child: const Text('No', style: TextStyle(color: Color(0xFFEF5350), fontSize: 18, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _uploadTrafficFeedback(true);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Yes', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _uploadTrafficFeedback(bool wasSuccessful) async {
+    try {
+      await FirebaseFirestore.instance.collection('traffic_feedback').add({
+        'wasSuccessful': wasSuccessful,
+        'timestamp': FieldValue.serverTimestamp(),
+        'deviceTime': DateTime.now().toIso8601String(),
+      });
+      debugPrint('✅ Traffic feedback uploaded: $wasSuccessful');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(wasSuccessful ? 'Thanks! Feedback recorded.' : 'Thanks for the feedback.'),
+            backgroundColor: wasSuccessful ? const Color(0xFF4CAF50) : const Color(0xFFE53935),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Traffic feedback upload failed: $e');
+    }
   }
 
   /// Send ~2s of silence audio so VAD detects end of speech.
