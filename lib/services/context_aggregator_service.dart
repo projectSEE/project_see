@@ -4,7 +4,7 @@ import 'text_recognition_service.dart';
 import 'image_labeling_service.dart';
 
 /// Aggregates context from multiple ML Kit APIs
-/// Generates natural language descriptions for blind users
+/// Generates natural language descriptions for blind user
 class ContextAggregatorService {
   // Timing control
   DateTime _lastContextUpdate = DateTime.now();
@@ -53,12 +53,12 @@ class ContextAggregatorService {
       parts.add('Scene contains: $labelList');
     }
     
-    // Generate summary
+    // Generate summaries
     final summary = parts.isEmpty 
         ? 'Clear path ahead' 
         : parts.join('. ');
     
-    // Determine priority for feedback
+    // Determine priority for feedbacks
     final priority = _determinePriority(obstacles, textBlocks);
     
     return ContextSummary(

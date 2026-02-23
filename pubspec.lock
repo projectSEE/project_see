@@ -306,7 +306,7 @@ packages:
     source: hosted
     version: "0.2.2+2"
   firebase_auth:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: firebase_auth
       sha256: b20d1540460814c5984474c1e9dd833bdbcff6ecd8d6ad86cc9da8cfd581c172
@@ -406,6 +406,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.3"
+  flutter_phone_direct_caller:
+    dependency: "direct main"
+    description:
+      name: flutter_phone_direct_caller
+      sha256: "8f166b12391572ce5872feeac3f4b47f455ee314ef221d98ba160c296ae2fad3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.1"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -423,10 +431,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_tts
-      sha256: ce5eb209b40e95f2f4a1397116c87ab2fcdff32257d04ed7a764e75894c03775
+      sha256: aed2a00c48c43af043ed81145fd8503ddd793dafa7088ab137dbef81a703e53d
       url: "https://pub.dev"
     source: hosted
-    version: "4.2.5"
+    version: "4.0.2"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -520,6 +528,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.4.7"
+  google_identity_services_web:
+    dependency: transitive
+    description:
+      name: google_identity_services_web
+      sha256: "5d187c46dc59e02646e10fe82665fc3884a9b71bc1c90c2b8b749316d33ee454"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.3+1"
   google_maps:
     dependency: transitive
     description:
@@ -600,6 +616,46 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.1"
+  google_sign_in:
+    dependency: "direct main"
+    description:
+      name: google_sign_in
+      sha256: "521031b65853b4409b8213c0387d57edaad7e2a949ce6dea0d8b2afc9cb29763"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.2.0"
+  google_sign_in_android:
+    dependency: transitive
+    description:
+      name: google_sign_in_android
+      sha256: "799165f4c0621ed233bccdded4c2e92739bc1fe73e970163b2f7493b301adad3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.2.1"
+  google_sign_in_ios:
+    dependency: transitive
+    description:
+      name: google_sign_in_ios
+      sha256: d9d80f953a244a099a40df1ff6aadc10ee375e6a098bbd5d55be332ce26db18c
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.2.1"
+  google_sign_in_platform_interface:
+    dependency: transitive
+    description:
+      name: google_sign_in_platform_interface
+      sha256: "7f59208c42b415a3cca203571128d6f84f885fead2d5b53eb65a9e27f2965bb5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.0"
+  google_sign_in_web:
+    dependency: transitive
+    description:
+      name: google_sign_in_web
+      sha256: "2fc1f941e6443b2d6984f4056a727a3eaeab15d8ee99ba7125d79029be75a1da"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   html:
     dependency: transitive
     description:

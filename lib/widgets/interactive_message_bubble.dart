@@ -13,6 +13,7 @@ class InteractiveMessageBubble extends StatelessWidget {
   final String role;
   final String text;
   final Uint8List? imageBytes;
+  final String? imageUrl; // <--- Add this
   final VoidCallback? onTapReadAloud;
   final VoidCallback? onDelete;
   final VoidCallback? onImageTap;
@@ -22,6 +23,7 @@ class InteractiveMessageBubble extends StatelessWidget {
     required this.role,
     required this.text,
     this.imageBytes,
+    this.imageUrl, // <--- Add this
     this.onTapReadAloud,
     this.onDelete,
     this.onImageTap,
@@ -52,7 +54,7 @@ class InteractiveMessageBubble extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (imageBytes != null) _buildImage(),
+              if (imageBytes != null || imageUrl != null) _buildImage(),
               if (text.isNotEmpty) _buildText(),
               if (_isModel && onTapReadAloud != null) _buildReadAloudButton(),
             ],
@@ -69,12 +71,43 @@ class InteractiveMessageBubble extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          child: Image.memory(
-            imageBytes!,
-            width: 200,
-            height: 200,
-            fit: BoxFit.cover,
-          ),
+          child: imageBytes != null 
+              ? Image.memory(
+                  imageBytes!,
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.cover,
+                )
+              : Image.network(
+                  imageUrl!,
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 200,
+                      height: 200,
+                      color: Colors.grey[300],
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    );
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 200,
+                      height: 200,
+                      color: Colors.grey[200],
+                      alignment: Alignment.center,
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded / 
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    );
+                  },
+                ),
         ),
       ),
     );
