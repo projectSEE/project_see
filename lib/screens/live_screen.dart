@@ -677,8 +677,10 @@ Response rules:
 
   // ── Quick Action Buttons ──
   Widget _buildQuickActions() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return Wrap(
+      alignment: WrapAlignment.spaceEvenly,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _actionButton(
           icon: Icons.visibility,
@@ -691,6 +693,12 @@ Response rules:
           label: 'Read',
           prompt: 'Read any text',
           color: const Color(0xFF66BB6A),
+        ),
+        _actionButton(
+          icon: Icons.traffic,
+          label: 'Traffic',
+          prompt: 'Watch the traffic light in front of me. Tell me its current color and tell me when it changes. Let me know when it is safe to cross the road.',
+          color: const Color(0xFFFF7043),
         ),
         _actionButton(
           icon: Icons.landscape,
