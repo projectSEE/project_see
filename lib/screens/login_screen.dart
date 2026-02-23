@@ -41,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    
     final user = _auth.currentUser;
     if (user != null && !user.emailVerified) {
       _currentPage = 'verification';
@@ -247,6 +248,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ─── Google Sign-In ──────────────────────────────
 
+  // Web client ID from google-services.json (client_type: 3)
+  static const String _webClientId =
+      '777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com';
+
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
@@ -255,8 +260,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final googleSignIn = GoogleSignIn.instance;
-      await googleSignIn.initialize();
-      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
+      await googleSignIn.initialize(
+        serverClientId: _webClientId,
+      );
+      final GoogleSignInAccount? googleUser =
+          await googleSignIn.authenticate();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in flow
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
       final idToken = googleUser.authentication.idToken;
       final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -264,6 +278,13 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await _auth.signInWithCredential(credential);
+    } on GoogleSignInException catch (e) {
+      // Handle user cancellation gracefully (don't show error)
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        debugPrint('Google Sign-In cancelled by user');
+      } else {
+        setState(() => _errorMessage = 'Google Sign-In failed: $e');
+      }
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = e.message ?? 'Google Sign-In failed');
     } catch (e) {
