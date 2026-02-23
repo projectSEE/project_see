@@ -41,7 +41,7 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
 
   // ── Accessibility ──
   bool _aiIsSpeaking = false;
-  bool _pushToTalkMode = false;
+  bool _pushToTalkMode = true; // true = Hold to Talk, false = Real Time
   bool _pttPressed = false;
   bool _isFirstAudioChunk = true;
   String _statusMessage = 'Initializing...';
@@ -357,15 +357,22 @@ Response rules:
     }
   }
 
-  Future<void> _sendTurnComplete() async {
+  /// Send ~2s of silence audio so VAD detects end of speech.
+  /// Without this, releasing PTT stops sending data entirely,
+  /// and the server never sees the speech→silence transition.
+  Future<void> _sendSilenceTail() async {
     if (!_isConnected || _session == null) return;
-    try {
-      await _session!.send(
-        input: Content.text(''),
-        turnComplete: true,
-      );
-    } catch (e) {
-      debugPrint('❌ turnComplete: $e');
+    // PCM 16-bit mono at 16kHz = 32000 bytes/sec
+    // Send 100ms chunks × 20 = 2 seconds of silence
+    final silence = Uint8List(3200); // 100ms of zeros
+    for (int i = 0; i < 20; i++) {
+      if (!_isConnected || _session == null) break;
+      try {
+        await _session!.sendAudioRealtime(
+          InlineDataPart('audio/pcm;rate=16000', silence),
+        );
+      } catch (_) { break; }
+      await Future.delayed(const Duration(milliseconds: 100));
     }
   }
 
@@ -393,94 +400,103 @@ Response rules:
   }
 
   // ═══════════════════════════════════════════════════
-  // BUILD UI — Clean production interface
+  // BUILD UI — Accessible, user-friendly design
   // ═══════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0A0A0F),
       body: SafeArea(
         child: Column(
           children: [
             _buildStatusBar(),
-            Expanded(child: _buildCameraPreview()),
-            if (_isConnected) _buildQuickPrompts(),
-            _buildControlPanel(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    _buildCompactCamera(),
+                    const SizedBox(height: 24),
+                    _buildAIStatusRing(),
+                    const SizedBox(height: 28),
+                    if (_isConnected) ...[
+                      _buildQuickActions(),
+                      const SizedBox(height: 20),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            _buildBottomPanel(),
           ],
         ),
       ),
     );
   }
 
-  // ── Status bar ──
+  // ── Status Bar ──
   Widget _buildStatusBar() {
-    final Color statusColor = _isConnected
-        ? (_aiIsSpeaking ? Colors.orange : Colors.green)
-        : (_isConnecting ? Colors.orange : Colors.grey);
+    final bool connected = _isConnected;
+    final Color accent = connected
+        ? (_aiIsSpeaking ? const Color(0xFFFF9800) : const Color(0xFF4CAF50))
+        : (_isConnecting ? const Color(0xFFFF9800) : const Color(0xFF616161));
 
-    return Semantics(
-      liveRegion: true,
-      label: 'Live status: $_statusMessage',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: statusColor.withValues(alpha: 0.15),
-          border: Border(bottom: BorderSide(color: statusColor, width: 3)),
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        border: Border(bottom: BorderSide(color: accent.withValues(alpha: 0.3), width: 1)),
+      ),
+      child: Semantics(
+        liveRegion: true,
+        label: 'Status: $_statusMessage',
         child: Row(
           children: [
             // Status dot
             Container(
-              width: 28,
-              height: 28,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: statusColor,
-                boxShadow: _isConnected
-                    ? [BoxShadow(color: statusColor.withValues(alpha: 0.6), blurRadius: 12, spreadRadius: 2)]
+                color: accent,
+                boxShadow: connected
+                    ? [BoxShadow(color: accent.withValues(alpha: 0.6), blurRadius: 8)]
                     : [],
               ),
-              child: Icon(
-                _isConnected
-                    ? (_aiIsSpeaking ? Icons.volume_up : Icons.mic)
-                    : (_isConnecting ? Icons.sync : Icons.mic_off),
-                color: Colors.white,
-                size: 16,
-              ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 _statusMessage,
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            // PTT toggle
-            if (_isConnected)
-              IconButton(
-                icon: Icon(
-                  _pushToTalkMode ? Icons.touch_app : Icons.mic,
-                  color: _pushToTalkMode ? Colors.orange : Colors.white70,
-                ),
-                tooltip: _pushToTalkMode ? 'Push-to-Talk ON' : 'Always Listen',
-                onPressed: () => setState(() => _pushToTalkMode = !_pushToTalkMode),
-              ),
-            // LIVE badge
-            if (_isConnected)
+            if (connected)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFFFF1744).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFF1744).withValues(alpha: 0.3)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.fiber_manual_record, color: Colors.red, size: 10),
+                    Icon(Icons.fiber_manual_record, color: Color(0xFFFF1744), size: 8),
                     SizedBox(width: 4),
-                    Text('LIVE', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text('LIVE', style: TextStyle(
+                      color: Color(0xFFFF1744),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    )),
                   ],
                 ),
               ),
@@ -490,250 +506,590 @@ Response rules:
     );
   }
 
-  // ── Camera preview ──
-  Widget _buildCameraPreview() {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: Colors.white),
-            const SizedBox(height: 16),
-            Text(_statusMessage, style: const TextStyle(color: Colors.white70, fontSize: 18)),
-          ],
-        ),
-      );
-    }
-    return Stack(
-      children: [
-        Center(child: CameraPreview(_cameraController!)),
-        // Mode indicator overlay (minimal)
-        if (_isConnected)
-          Positioned(
-            top: 12,
-            left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                _pushToTalkMode ? '🎤 Push-to-Talk' : '👂 Always Listening',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-            ),
+  // ── Compact Camera Preview ──
+  Widget _buildCompactCamera() {
+    final bool ready = _cameraController != null && _cameraController!.value.isInitialized;
+
+    return Semantics(
+      label: ready ? 'Camera is active' : 'Camera loading',
+      child: Container(
+        height: 100,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isConnected
+                ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.1),
           ),
-      ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ready
+            ? Stack(
+                children: [
+                  Center(child: CameraPreview(_cameraController!)),
+                  // Overlay gradient
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            const Color(0xFF0A0A0F).withValues(alpha: 0.6),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Camera label
+                  Positioned(
+                    bottom: 8,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.videocam, color: Colors.white.withValues(alpha: 0.7), size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Camera Active',
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.videocam_off, color: Colors.white.withValues(alpha: 0.3), size: 28),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Camera loading...',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 
-  // ── Quick prompts ──
-  Widget _buildQuickPrompts() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
+  // ── AI Status Ring Visualization ──
+  Widget _buildAIStatusRing() {
+    // Determine ring color based on mode and state
+    final Color ringColor;
+    final String stateLabel;
+    final IconData stateIcon;
+    final bool isActive;
+
+    if (!_isConnected) {
+      ringColor = const Color(0xFF424242);
+      stateLabel = 'Not connected';
+      stateIcon = Icons.power_off;
+      isActive = false;
+    } else if (_aiIsSpeaking) {
+      ringColor = const Color(0xFFFF9800);
+      stateLabel = 'AI is speaking';
+      stateIcon = Icons.volume_up_rounded;
+      isActive = true;
+    } else if (_pushToTalkMode) {
+      // PTT mode
+      ringColor = _pttPressed ? const Color(0xFFE53935) : const Color(0xFF2196F3);
+      stateLabel = _pttPressed ? 'Listening to you' : 'Ready — hold to talk';
+      stateIcon = _pttPressed ? Icons.mic : Icons.mic_none;
+      isActive = _pttPressed;
+    } else {
+      // Real Time mode — always listening
+      ringColor = const Color(0xFF4CAF50);
+      stateLabel = 'Listening in real time';
+      stateIcon = Icons.hearing;
+      isActive = true;
+    }
+
+    return Semantics(
+      liveRegion: true,
+      label: stateLabel,
+      child: Column(
         children: [
-          _promptChip('What do you see?'),
-          _promptChip('Any obstacles?'),
-          _promptChip('Read any text'),
-          _promptChip('Describe the scene'),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            width: 180,
+            height: 180,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: ringColor, width: isActive ? 5 : 3),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(color: ringColor.withValues(alpha: 0.3), blurRadius: 30, spreadRadius: 5),
+                      BoxShadow(color: ringColor.withValues(alpha: 0.15), blurRadius: 60, spreadRadius: 15),
+                    ]
+                  : [],
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: ringColor.withValues(alpha: isActive ? 0.12 : 0.05),
+              ),
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Icon(
+                    stateIcon,
+                    key: ValueKey(stateIcon),
+                    color: ringColor,
+                    size: 64,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            style: TextStyle(
+              color: ringColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+            child: Text(stateLabel),
+          ),
         ],
       ),
     );
   }
 
-  Widget _promptChip(String text) {
-    return ActionChip(
-      label: Text(text, style: const TextStyle(fontSize: 12)),
-      onPressed: () => _sendTextPrompt(text),
-      backgroundColor: Colors.blue.shade800,
-      labelStyle: const TextStyle(color: Colors.white),
+  // ── Quick Action Buttons ──
+  Widget _buildQuickActions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _actionButton(
+          icon: Icons.visibility,
+          label: 'See',
+          prompt: 'What do you see?',
+          color: const Color(0xFF42A5F5),
+        ),
+        _actionButton(
+          icon: Icons.auto_stories,
+          label: 'Read',
+          prompt: 'Read any text',
+          color: const Color(0xFF66BB6A),
+        ),
+        _actionButton(
+          icon: Icons.landscape,
+          label: 'Scene',
+          prompt: 'Describe the scene around me in detail',
+          color: const Color(0xFFAB47BC),
+        ),
+      ],
     );
   }
 
-  // ── Control panel (START/STOP + PTT hold button + Back) ──
-  Widget _buildControlPanel() {
+  Widget _actionButton({
+    required IconData icon,
+    required String label,
+    required String prompt,
+    required Color color,
+  }) {
+    return Semantics(
+      button: true,
+      label: '$label. Tap to ask: $prompt',
+      child: GestureDetector(
+        onTap: () => _sendTextPrompt(prompt),
+        child: Container(
+          width: 90,
+          height: 80,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Mode Toggle ──
+  Widget _buildModeToggle() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      height: 52,
       decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          // Hold to Talk option
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _pushToTalkMode = true),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  gradient: _pushToTalkMode
+                      ? const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF1E88E5)])
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.touch_app,
+                        color: _pushToTalkMode ? Colors.white : Colors.white38,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Hold to Talk',
+                        style: TextStyle(
+                          color: _pushToTalkMode ? Colors.white : Colors.white38,
+                          fontSize: 14,
+                          fontWeight: _pushToTalkMode ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Real Time option
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _pushToTalkMode = false;
+                _pttPressed = false; // Reset PTT state
+              }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  gradient: !_pushToTalkMode
+                      ? const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)])
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.hearing,
+                        color: !_pushToTalkMode ? Colors.white : Colors.white38,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Real Time',
+                        style: TextStyle(
+                          color: !_pushToTalkMode ? Colors.white : Colors.white38,
+                          fontSize: 14,
+                          fontWeight: !_pushToTalkMode ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom Panel (PTT + Controls) ──
+  Widget _buildBottomPanel() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF111118),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, -4))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // PTT hold button (visible when PTT mode is on and connected)
-          if (_pushToTalkMode && _isConnected) ...[
+          // ── Connected state ──
+          if (_isConnected) ...[
+            // ── Mode toggle ──
+            _buildModeToggle(),
+            const SizedBox(height: 12),
+            // ── PTT button (only in Hold to Talk mode) ──
+            if (_pushToTalkMode) ...[
+              Semantics(
+                button: true,
+                label: _pttPressed ? 'Speaking. Release to send.' : 'Hold to talk.',
+                child: Listener(
+                  onPointerDown: (_) {
+                    setState(() => _pttPressed = true);
+                    _playListeningEarcon();
+                  },
+                  onPointerUp: (_) {
+                    setState(() => _pttPressed = false);
+                    _playProcessingEarcon();
+                    _sendSilenceTail();
+                  },
+                  onPointerCancel: (_) {
+                    setState(() => _pttPressed = false);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: double.infinity,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      gradient: _pttPressed
+                          ? const LinearGradient(
+                              colors: [Color(0xFFC62828), Color(0xFFE53935)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFF1565C0), Color(0xFF1E88E5)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_pttPressed ? const Color(0xFFE53935) : const Color(0xFF1E88E5))
+                              .withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _pttPressed ? Icons.mic : Icons.mic_none,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            _pttPressed ? 'SPEAKING...' : 'HOLD TO TALK',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // ── Bottom row: Back + End Live ──
+            Row(
+              children: [
+                // Back button
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: 'Go back',
+                    child: GestureDetector(
+                      onTap: () {
+                        _stopAll();
+                        if (mounted) Navigator.pop(context);
+                      },
+                      child: Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A2A35),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 22),
+                              SizedBox(width: 8),
+                              Text('BACK', style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // End Live button
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: 'End live session',
+                    child: GestureDetector(
+                      onTap: _stopAll,
+                      child: Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE53935).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE53935).withValues(alpha: 0.4)),
+                        ),
+                        child: const Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.stop_rounded, color: Color(0xFFEF5350), size: 22),
+                              SizedBox(width: 8),
+                              Text('END LIVE', style: TextStyle(
+                                color: Color(0xFFEF5350),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            // ── Not connected: START LIVE button ──
             Semantics(
               button: true,
-              label: 'Hold to talk. Release to send.',
+              label: 'Start live conversation with voice and camera',
               child: GestureDetector(
-                onLongPressStart: (_) {
-                  setState(() => _pttPressed = true);
-                  _playListeningEarcon();
-                },
-                onLongPressEnd: (_) {
-                  setState(() => _pttPressed = false);
-                  _sendTurnComplete();
-                  _playProcessingEarcon();
-                },
-                onLongPressCancel: () => setState(() => _pttPressed = false),
-                onTapDown: (_) {
-                  setState(() => _pttPressed = true);
-                  _playListeningEarcon();
-                },
-                onTapUp: (_) {
-                  setState(() => _pttPressed = false);
-                  _sendTurnComplete();
-                  _playProcessingEarcon();
-                },
-                onTapCancel: () => setState(() => _pttPressed = false),
+                onTap: _isConnecting ? null : () => _startAll(),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: const Duration(milliseconds: 300),
                   width: double.infinity,
-                  height: 80,
+                  height: 100,
                   decoration: BoxDecoration(
-                    gradient: _pttPressed
-                        ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFFF5252)])
-                        : const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF42A5F5)]),
-                    borderRadius: BorderRadius.circular(20),
+                    gradient: _isConnecting
+                        ? LinearGradient(
+                            colors: [const Color(0xFFFF9800).withValues(alpha: 0.8), const Color(0xFFFFA726)],
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: (_pttPressed ? Colors.red : Colors.blue).withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        color: const Color(0xFF1E88E5).withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
                   child: Center(
+                    child: _isConnecting
+                        ? const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(width: 28, height: 28, child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 3,
+                              )),
+                              SizedBox(width: 16),
+                              Text('CONNECTING...', style: TextStyle(
+                                color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800,
+                              )),
+                            ],
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                              SizedBox(width: 14),
+                              Text('START LIVE', style: TextStyle(
+                                color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              )),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Back button (disconnected)
+            Semantics(
+              button: true,
+              label: 'Go back',
+              child: GestureDetector(
+                onTap: () {
+                  if (mounted) Navigator.pop(context);
+                },
+                child: Container(
+                  width: double.infinity,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A35),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Center(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          _pttPressed ? Icons.mic : Icons.mic_off,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                        const SizedBox(width: 14),
-                        Text(
-                          _pttPressed ? 'SPEAKING...' : 'HOLD TO TALK',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 22),
+                        SizedBox(width: 8),
+                        Text('BACK', style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        )),
                       ],
                     ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
           ],
-
-          // START / END LIVE button
-          Semantics(
-            button: true,
-            label: _isConnected
-                ? 'End live conversation'
-                : 'Start live conversation with voice and camera',
-            child: GestureDetector(
-              onTap: () async {
-                if (_isConnected) {
-                  _stopAll();
-                } else {
-                  await _startAll();
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: double.infinity,
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: _isConnected
-                      ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFFF5252)])
-                      : const LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF42A5F5)]),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _isConnected
-                          ? Colors.red.withValues(alpha: 0.4)
-                          : Colors.blue.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: _isConnecting
-                      ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                            ),
-                            SizedBox(width: 14),
-                            Text('CONNECTING...', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isConnected ? Icons.stop : Icons.videocam,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 14),
-                            Text(
-                              _isConnected ? 'END LIVE' : 'START LIVE',
-                              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Back button
-          Semantics(
-            button: true,
-            label: 'Go back to main menu',
-            child: GestureDetector(
-              onTap: () async {
-                if (_isConnected) _stopAll();
-                if (mounted) Navigator.pop(context);
-              },
-              child: Container(
-                width: double.infinity,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_back, color: Colors.white, size: 24),
-                      SizedBox(width: 10),
-                      Text('BACK', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 }
+
