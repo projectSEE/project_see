@@ -444,18 +444,20 @@ Response rules:
     }
   }
 
-  /// Send turnComplete signal — used by PTT to tell server "I'm done speaking"
-  Future<void> _sendTurnComplete() async {
+  /// Send ~2s of silence audio so VAD detects end of speech.
+  Future<void> _sendSilenceTail() async {
     if (!_isConnected || _session == null) return;
-    try {
-      await _session!.send(
-        input: Content.text(''),
-        turnComplete: true,
-      );
-      _log('📤 turnComplete sent');
-    } catch (e) {
-      _log('❌ turnComplete: $e', 'error');
+    final silence = Uint8List(3200); // 100ms of silence PCM
+    for (int i = 0; i < 20; i++) {
+      if (!_isConnected || _session == null) break;
+      try {
+        await _session!.sendAudioRealtime(
+          InlineDataPart('audio/pcm;rate=16000', silence),
+        );
+      } catch (_) { break; }
+      await Future.delayed(const Duration(milliseconds: 100));
     }
+    _log('🔇 Silence tail sent (VAD should trigger)');
   }
 
   // ═══════════════════════════════════════════════════
@@ -585,33 +587,22 @@ Response rules:
                 // Push-to-Talk button (visible when PTT mode is on)
                 if (_pushToTalkMode && _isConnected) ...[
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    // Use long press for reliable hold-to-talk
-                    onLongPressStart: (_) {
+                  Listener(
+                    // ★ Use raw Listener — GestureDetector's tap/longPress
+                    // fight in the gesture arena, causing _pttPressed to
+                    // briefly go false (onTapCancel) and drop audio.
+                    onPointerDown: (_) {
                       setState(() => _pttPressed = true);
                       _playListeningEarcon();
                       _log('🎤 PTT: SPEAKING');
                     },
-                    onLongPressEnd: (_) {
+                    onPointerUp: (_) {
                       setState(() => _pttPressed = false);
-                      _sendTurnComplete(); // ★ Tell server: "I'm done, respond!"
                       _playProcessingEarcon();
-                      _log('🎤 PTT: RELEASED → turnComplete sent');
+                      _log('🎤 PTT: RELEASED → sending silence tail');
+                      _sendSilenceTail();
                     },
-                    onLongPressCancel: () {
-                      setState(() => _pttPressed = false);
-                    },
-                    // Also handle quick tap down/up for instant response
-                    onTapDown: (_) {
-                      setState(() => _pttPressed = true);
-                      _playListeningEarcon();
-                    },
-                    onTapUp: (_) {
-                      setState(() => _pttPressed = false);
-                      _sendTurnComplete(); // ★ Tell server: "I'm done, respond!"
-                      _playProcessingEarcon();
-                    },
-                    onTapCancel: () {
+                    onPointerCancel: (_) {
                       setState(() => _pttPressed = false);
                     },
                     child: Container(
