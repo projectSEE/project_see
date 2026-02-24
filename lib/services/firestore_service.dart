@@ -339,7 +339,9 @@ class FirestoreService {
         // Get nearby POIs
         final allPOIs = await getAllPOIs();
         final nearbyPOIs = allPOIs.where((poi) {
-          final coords = poi['coords'] as Map<String, dynamic>?;
+          // Support both 'location' (new) and 'coords' (legacy) field names
+          final coords = (poi['location'] as Map<String, dynamic>?) 
+              ?? (poi['coords'] as Map<String, dynamic>?);
           if (coords == null) return false;
           
           final lat = coords['latitude'] as num?;
@@ -362,6 +364,7 @@ class FirestoreService {
   }
 
   /// Save a new POI to the central pois collection (accessible by all users).
+  /// Structure: pois/{poiName} with location and description fields.
   Future<bool> savePOI({
     required String name,
     required String type,
@@ -373,23 +376,25 @@ class FirestoreService {
     String? addedBy,
   }) async {
     try {
-      await _db.collection('pois').add({
+      // Use name as document ID so it's visible in Firebase console
+      final docId = name.replaceAll(RegExp(r'[/\\.]'), '_').trim();
+      await _db.collection('pois').doc(docId).set({
         'name': name,
         'type': type,
         'description': description,
         'safetyNotes': safetyNotes ?? '',
-        'coords': {
+        'location': {
           'latitude': latitude,
           'longitude': longitude,
+          'address': address ?? '',
         },
-        'address': address ?? '',
         'addedBy': addedBy ?? 'anonymous',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      print('POI saved: $name');
+      print('✅ POI saved to Firestore: $name ($docId)');
       return true;
     } catch (e) {
-      print('Error saving POI: $e');
+      print('❌ Error saving POI: $e');
       return false;
     }
   }

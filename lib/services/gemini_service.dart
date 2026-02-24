@@ -21,7 +21,7 @@ class GeminiService {
   GeminiService() {
     // Initialize the normal model using firebase_ai package
     _model = FirebaseAI.vertexAI().generativeModel(
-      model: 'gemini-2.5-flash-lite',
+      model: 'gemini-2.5-flash',
     );
   }
 

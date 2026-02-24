@@ -265,11 +265,41 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // Parse and handle POI add markers from the response
       String displayResponse = response;
-      final poiRegex = RegExp(r'\{\{ADD_POI:(.*?)\}\}');
-      final matches = poiRegex.allMatches(response);
-      for (final match in matches) {
+      
+      // Use brace-counting to extract JSON (more reliable than regex)
+      int markerIdx = displayResponse.indexOf('ADD_POI:');
+      while (markerIdx != -1) {
+        debugPrint('🔍 Found ADD_POI marker in response');
+        
+        // Find the JSON object start
+        final jsonStart = displayResponse.indexOf('{', markerIdx + 8);
+        if (jsonStart == -1) break;
+        
+        // Count braces to find the complete JSON object
+        int depth = 0;
+        int jsonEnd = -1;
+        for (int i = jsonStart; i < displayResponse.length; i++) {
+          if (displayResponse[i] == '{') depth++;
+          if (displayResponse[i] == '}') depth--;
+          if (depth == 0) {
+            jsonEnd = i + 1;
+            break;
+          }
+        }
+        if (jsonEnd == -1) break;
+        
+        final jsonStr = displayResponse.substring(jsonStart, jsonEnd);
+        debugPrint('🔍 Parsing POI JSON: $jsonStr');
+        
+        // Find full marker bounds (including surrounding {{ }})
+        int removeStart = markerIdx;
+        while (removeStart > 0 && displayResponse[removeStart - 1] == '{') removeStart--;
+        int removeEnd = jsonEnd;
+        while (removeEnd < displayResponse.length && displayResponse[removeEnd] == '}') removeEnd++;
+        
         try {
-          final poiJson = json.decode(match.group(1)!) as Map<String, dynamic>;
+          final poiJson = json.decode(jsonStr) as Map<String, dynamic>;
+          
           if (latitude != null && longitude != null) {
             final saved = await _firestoreService.savePOI(
               name: poiJson['name'] ?? 'Unknown',
@@ -289,13 +319,22 @@ class _ChatScreenState extends State<ChatScreen> {
                   duration: const Duration(seconds: 3),
                 ),
               );
+            } else if (!saved) {
+              debugPrint('❌ savePOI returned false');
             }
+          } else {
+            debugPrint('⚠️ Cannot save POI: location is null (lat=$latitude, lng=$longitude)');
           }
         } catch (e) {
-          debugPrint('Error parsing POI from response: $e');
+          debugPrint('❌ Error parsing POI from response: $e');
         }
-        // Remove the marker from the displayed text
-        displayResponse = displayResponse.replaceAll(match.group(0)!, '').trim();
+        
+        // Remove the full marker from displayed text
+        final fullMarker = displayResponse.substring(removeStart, removeEnd);
+        displayResponse = displayResponse.replaceAll(fullMarker, '').trim();
+        
+        // Search for more markers
+        markerIdx = displayResponse.indexOf('ADD_POI:');
       }
       
       // Save assistant response to database
