@@ -1,40 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart'; 
+import 'package:url_launcher/url_launcher.dart';
+import '../core/localization/app_localizations.dart';
+import '../core/services/language_provider.dart';
 
 class SightFactsScreen extends StatelessWidget {
   const SightFactsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations(LanguageNotifier().languageCode);
     final List<Map<String, String>> facts = [
       {
-        "title": "The Silent Thief",
-        "content":
-            "Glaucoma is often called the 'silent thief of sight' because it gradually steals vision without any early symptoms or pain.",
-        "icon": "🕵️",
+        "title": strings.get('fact1Title'),
+        "content": strings.get('fact1Content'),
+        "icon": "\ud83d\udd75\ufe0f",
       },
       {
-        "title": "Tunnel Vision",
-        "content":
-            "Advanced Glaucoma typically results in 'tunnel vision', where you lose your side (peripheral) vision first.",
-        "icon": "🚇",
+        "title": strings.get('fact2Title'),
+        "content": strings.get('fact2Content'),
+        "icon": "\ud83d\ude87",
       },
       {
-        "title": "Regular Checks",
-        "content":
-            "Vision lost to Glaucoma cannot be recovered. Regular eye exams are the only way to catch it early and stop it.",
-        "icon": "🏥",
+        "title": strings.get('fact3Title'),
+        "content": strings.get('fact3Content'),
+        "icon": "\ud83c\udfe5",
       },
       {
-        "title": "Inclusive Design",
-        "content":
-            "High contrast buttons (like in this app!) help people with low vision distinguish elements easier.",
-        "icon": "🎨",
+        "title": strings.get('fact4Title'),
+        "content": strings.get('fact4Content'),
+        "icon": "\ud83c\udfa8",
       },
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Sight Facts")),
+      appBar: AppBar(title: Text(strings.get('sightFacts'))),
       body: PageView.builder(
         itemCount: facts.length,
         itemBuilder: (context, index) {
@@ -84,43 +83,44 @@ class SightFactsScreen extends StatelessWidget {
                     // --- UPDATED BUTTON (Force Launch Logic) ---
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          const url = "https://ncbm.org.my/";
-                          final uri = Uri.parse(url);
-                          
-                          // We use try-catch instead of 'canLaunchUrl' to force the intent
-                          // This fixes the "no response" issue on Android 11+
-                          try {
-                            await launchUrl(
-                              uri,
-                              mode: LaunchMode.externalApplication,
-                            );
-                          } catch (e) {
-                            debugPrint("Could not launch url: $e");
-                            // Fallback: Try launching without specific mode if the above fails
+                      child: Semantics(
+                        button: true,
+                        label: strings.get('nationalSupport'),
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            const url = "https://ncbm.org.my/";
+                            final uri = Uri.parse(url);
+
                             try {
-                              await launchUrl(uri);
-                            } catch (e2) {
-                              debugPrint("Fallback failed: $e2");
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } catch (e) {
+                              debugPrint("Could not launch url: $e");
+                              try {
+                                await launchUrl(uri);
+                              } catch (e2) {
+                                debugPrint("Fallback failed: $e2");
+                              }
                             }
-                          }
-                        },
-                        icon: const Icon(Icons.public, color: Colors.white),
-                        label: const Text(
-                          "National Support (NCBM)",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                          },
+                          icon: const Icon(Icons.public, color: Colors.white),
+                          label: Text(
+                            strings.get('nationalSupport'),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo.shade800, 
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo.shade800,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),

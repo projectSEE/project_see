@@ -2,6 +2,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:math';
+import '../core/localization/app_localizations.dart';
+import '../core/services/language_provider.dart';
 
 class VisionSimulatorScreen extends StatefulWidget {
   const VisionSimulatorScreen({super.key});
@@ -15,11 +17,17 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
   bool _isCameraInitialized = false;
   String _currentMode = "Glaucoma";
   double _splitPosition = 0.5; // 0.0 to 1.0
+  final LanguageNotifier _langNotifier = LanguageNotifier();
 
   @override
   void initState() {
     super.initState();
+    _langNotifier.addListener(_onLangChanged);
     _initializeCamera();
+  }
+
+  void _onLangChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _initializeCamera() async {
@@ -32,13 +40,16 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 
   @override
   void dispose() {
+    _langNotifier.removeListener(_onLangChanged);
     _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized) return const Scaffold(backgroundColor: Colors.black);
+    final strings = AppLocalizations(_langNotifier.languageCode);
+    if (!_isCameraInitialized)
+      return const Scaffold(backgroundColor: Colors.black);
 
     bool hideLine = _splitPosition > 0.5;
 
@@ -57,10 +68,17 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
               fit: StackFit.expand,
               children: [
                 CameraPreview(_controller!),
-                const Positioned(
-                  top: 50, left: 10,
+                Positioned(
+                  top: 50,
+                  left: 10,
                   child: Chip(
-                    label: Text("NORMAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: Text(
+                      strings.get('normalVision'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                     backgroundColor: Colors.white,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -71,9 +89,17 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 
           // Label for Impaired Side
           Positioned(
-            top: 50, right: 10,
+            top: 50,
+            right: 10,
             child: Chip(
-              label: Text(_currentMode.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              label: Text(
+                _currentMode.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
               backgroundColor: Colors.redAccent,
               visualDensity: VisualDensity.compact,
             ),
@@ -100,41 +126,75 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                         // Top Line
-                        Expanded(child: Container(width: 2, color: hideLine ? Colors.transparent : Colors.white70)),
-                        
+                        // Top Line
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            color:
+                                hideLine ? Colors.transparent : Colors.white70,
+                          ),
+                        ),
+
                         // THE NEW HANDLE: Horizontal Bar with Arrows
                         Container(
-                          height: 40, 
-                          width: 80, // Wider than the touch column to look like a bar
+                          height: 40,
+                          width:
+                              80, // Wider than the touch column to look like a bar
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
-                            boxShadow: [const BoxShadow(blurRadius: 8, color: Colors.black45)]
+                            boxShadow: [
+                              const BoxShadow(
+                                blurRadius: 8,
+                                color: Colors.black45,
+                              ),
+                            ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.chevron_left, size: 20, color: Colors.black),
-                              Text("SLIDE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10)),
-                              Icon(Icons.chevron_right, size: 20, color: Colors.black),
+                              const Icon(
+                                Icons.chevron_left,
+                                size: 20,
+                                color: Colors.black,
+                              ),
+                              Text(
+                                strings.get('slide'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                size: 20,
+                                color: Colors.black,
+                              ),
                             ],
                           ),
                         ),
-                        
+
                         // Bottom Line
-                        Expanded(child: Container(width: 2, color: hideLine ? Colors.transparent : Colors.white70)),
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            color:
+                                hideLine ? Colors.transparent : Colors.white70,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
               );
-            }
+            },
           ),
 
           // LAYER 4: Mode Selector (Perfectly Fitted)
           Positioned(
-            bottom: 30, left: 10, right: 10,
+            bottom: 30,
+            left: 10,
+            right: 10,
             child: Container(
               padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
@@ -143,9 +203,21 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
               ),
               child: Row(
                 children: [
-                  _buildModeBtn("Glaucoma", Colors.green),
-                  _buildModeBtn("Cataracts", Colors.blue),
-                  _buildModeBtn("Retinopathy", Colors.orange),
+                  _buildModeBtn(
+                    strings.get('glaucoma'),
+                    Colors.green,
+                    "Glaucoma",
+                  ),
+                  _buildModeBtn(
+                    strings.get('cataracts'),
+                    Colors.blue,
+                    "Cataracts",
+                  ),
+                  _buildModeBtn(
+                    strings.get('retinopathy'),
+                    Colors.orange,
+                    "Retinopathy",
+                  ),
                 ],
               ),
             ),
@@ -179,28 +251,32 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
   }
 
   // UPDATED BUTTON BUILDER: Uses Expanded to fit perfectly
-  Widget _buildModeBtn(String mode, Color color) {
-    bool isSelected = _currentMode == mode;
-    return Expanded( // <--- THIS MAKES THEM SHARE WIDTH EQUALLY
-      child: GestureDetector(
-        onTap: () => setState(() => _currentMode = mode),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? color : Colors.white10,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            mode, 
-            style: const TextStyle(
-              color: Colors.white, 
-              fontWeight: FontWeight.bold, 
-              fontSize: 12 // Slightly smaller font to prevent overflow
+  Widget _buildModeBtn(String label, Color color, String modeKey) {
+    bool isSelected = _currentMode == modeKey;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          onTap: () => setState(() => _currentMode = modeKey),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? color : Colors.white10,
+              borderRadius: BorderRadius.circular(10),
             ),
-            overflow: TextOverflow.ellipsis,
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ),
@@ -211,11 +287,12 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 class RetinopathyPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      // FIXED: .withOpacity() is deprecated, using .withValues() instead
-      ..color = Colors.black.withValues(alpha: 0.7)
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    final paint =
+        Paint()
+          // FIXED: .withOpacity() is deprecated, using .withValues() instead
+          ..color = Colors.black.withValues(alpha: 0.7)
+          ..style = PaintingStyle.fill
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
     final random = Random(42);
     for (int i = 0; i < 20; i++) {
@@ -235,8 +312,10 @@ class _SplitClipper extends CustomClipper<Rect> {
   _SplitClipper(this.splitFactor);
 
   @override
-  Rect getClip(Size size) => Rect.fromLTWH(0, 0, size.width * splitFactor, size.height);
+  Rect getClip(Size size) =>
+      Rect.fromLTWH(0, 0, size.width * splitFactor, size.height);
 
   @override
-  bool shouldReclip(_SplitClipper oldClipper) => splitFactor != oldClipper.splitFactor;
+  bool shouldReclip(_SplitClipper oldClipper) =>
+      splitFactor != oldClipper.splitFactor;
 }

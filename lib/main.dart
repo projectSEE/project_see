@@ -9,14 +9,19 @@ import 'package:vibration/vibration.dart';
 // import 'package:url_launcher/url_launcher.dart'; // No longer needed for calls
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:just_audio/just_audio.dart'; 
+import 'package:just_audio/just_audio.dart';
 import 'screens/awareness_screen.dart';
-import 'screens/login_screen.dart'; // <--- NEW IMPORT
-
+import 'screens/login_screen.dart';
+import 'screens/settings_screen.dart';
+import 'core/localization/app_localizations.dart';
+import 'core/services/language_provider.dart';
+import 'utils/accessibility_settings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await LanguageNotifier().initialize();
+  await TextScaleNotifier().initialize();
 
   runApp(const VisualAssistantApp());
 }
@@ -43,6 +48,29 @@ class ThemeNotifier extends ChangeNotifier {
   }
 }
 
+/// Reactive notifier for global text scaling.
+/// Wraps AccessibilitySettings.getFontScale() so the entire app
+/// rebuilds when the user changes text size in Settings.
+class TextScaleNotifier extends ChangeNotifier {
+  static final TextScaleNotifier _instance = TextScaleNotifier._internal();
+  factory TextScaleNotifier() => _instance;
+  TextScaleNotifier._internal();
+
+  double _scale = 1.0;
+  double get scale => _scale;
+
+  Future<void> initialize() async {
+    _scale = await AccessibilitySettings.getFontScale();
+    notifyListeners();
+  }
+
+  Future<void> setScale(double value) async {
+    _scale = value.clamp(0.8, 2.0);
+    notifyListeners();
+    await AccessibilitySettings.setFontScale(_scale);
+  }
+}
+
 class VisualAssistantApp extends StatefulWidget {
   const VisualAssistantApp({super.key});
 
@@ -52,21 +80,27 @@ class VisualAssistantApp extends StatefulWidget {
 
 class _VisualAssistantAppState extends State<VisualAssistantApp> {
   final ThemeNotifier _themeNotifier = ThemeNotifier();
+  final LanguageNotifier _langNotifier = LanguageNotifier();
+  final TextScaleNotifier _textScaleNotifier = TextScaleNotifier();
 
   @override
   void initState() {
     super.initState();
-    _themeNotifier.addListener(_onThemeChanged);
+    _themeNotifier.addListener(_rebuild);
+    _langNotifier.addListener(_rebuild);
+    _textScaleNotifier.addListener(_rebuild);
   }
 
   @override
   void dispose() {
-    _themeNotifier.removeListener(_onThemeChanged);
+    _themeNotifier.removeListener(_rebuild);
+    _langNotifier.removeListener(_rebuild);
+    _textScaleNotifier.removeListener(_rebuild);
     super.dispose();
   }
 
-  void _onThemeChanged() {
-    setState(() {});
+  void _rebuild() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -77,6 +111,15 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
       theme: AppThemeConfig.lightTheme,
       darkTheme: AppThemeConfig.darkTheme,
       themeMode: _themeNotifier.themeMode,
+      // Apply global text scaling from Settings
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(_textScaleNotifier.scale)),
+          child: child!,
+        );
+      },
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.userChanges(),
         builder: (context, snapshot) {
@@ -90,12 +133,10 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
             );
           } else if (snapshot.hasData) {
             final user = snapshot.data!;
-            // For email/password users, require email verification
-            final isEmailProvider = user.providerData
-                .any((p) => p.providerId == 'password');
+            final isEmailProvider = user.providerData.any(
+              (p) => p.providerId == 'password',
+            );
             if (isEmailProvider && !user.emailVerified) {
-              // Not verified — show LoginScreen (don't sign out!)
-              // The user stays signed in so LoginScreen can reload() them
               return const LoginScreen();
             }
             return const SafetyMonitor(child: HomeScreen());
@@ -108,106 +149,203 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+/// Home Screen — 九宫格 (Big Grid) accessible menu.
+/// Rebuilt with WCAG-standard large tiles, Semantics labels, and localization.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final LanguageNotifier _langNotifier = LanguageNotifier();
+
+  @override
+  void initState() {
+    super.initState();
+    _langNotifier.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _langNotifier.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations(_langNotifier.languageCode);
+    final theme = Theme.of(context);
+
+    // Menu items — each maps to a development screen
+    final List<Map<String, dynamic>> menuItems = [
+      {
+        'icon': Icons.camera_alt,
+        'label': strings.get('obstacleDetection'),
+        'color': theme.colorScheme.primary,
+        'screen': const ObstacleDetectorScreen(),
+      },
+      {
+        'icon': Icons.chat,
+        'label': strings.get('chatbot'),
+        'color': theme.colorScheme.primary,
+        'screen': const ChatScreen(),
+      },
+      {
+        'icon': Icons.visibility_off_outlined,
+        'label': strings.get('visionAwareness'),
+        'color': Colors.purple,
+        'screen': const AwarenessMenuScreen(),
+      },
+      {
+        'icon': Icons.settings,
+        'label': strings.get('settings'),
+        'color': theme.colorScheme.secondary,
+        'screen': const SettingsScreen(),
+      },
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Visual Assistant'),
+        title: Text(strings.get('appTitle')),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign Out',
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
+          Semantics(
+            label: strings.get('signOut'),
+            button: true,
+            child: IconButton(
+              icon: const Icon(Icons.logout, size: 28),
+              tooltip: strings.get('signOut'),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+            ),
           ),
         ],
       ),
-      body: Center(
+      body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              // Welcome text
+              const SizedBox(height: 8),
+              Text(
+                strings.get('welcome'),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                strings.get('chooseFeature'),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // 九宫格 Grid
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Adjust aspect ratio based on text scale factor to prevent vertical overflow
+                    final textScale = MediaQuery.textScalerOf(context).scale(1);
+                    final crossAxisCount = 2;
+                    final spacing = 16.0;
+                    final itemWidth =
+                        (constraints.maxWidth -
+                            spacing * (crossAxisCount - 1)) /
+                        crossAxisCount;
+                    // Base item height without scaling is roughly equal to itemWidth, plus extra space for large text.
+                    final itemHeight =
+                        itemWidth +
+                        (30 * textScale); // Add extra height for text
+                    final childAspectRatio = itemWidth / itemHeight;
+
+                    return GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: spacing,
+                        mainAxisSpacing: spacing,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemCount: menuItems.length,
+                      itemBuilder: (context, index) {
+                        final item = menuItems[index];
+                        return _buildMenuTile(
+                          context,
+                          icon: item['icon'],
+                          label: item['label'],
+                          color: item['color'],
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => item['screen'] as Widget,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Builds a large, accessible grid tile with icon, label, and Semantics.
+  Widget _buildMenuTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      label: label,
+      button: true,
+      child: Material(
+        color: color.withOpacity(0.08),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: color, width: 2),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.visibility, size: 80, color: Colors.blueAccent),
-              const SizedBox(height: 16),
-              const Text(
-                'Welcome to Visual Assistant',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Choose a feature to get started',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ObstacleDetectorScreen(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.camera_alt, size: 28),
-                  label: const Text(
-                    'Obstacle Detection',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ChatScreen(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.chat, size: 28),
-                  label: const Text('Chatbot', style: TextStyle(fontSize: 18)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AwarenessMenuScreen(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.visibility_off_outlined,
-                    size: 28,
-                  ), 
-                  label: const Text(
-                    'Vision Awareness',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.purple.shade100, 
-                    foregroundColor: Colors.purple.shade900,
+              Icon(icon, size: 56, color: color),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
                   ),
                 ),
               ),
@@ -233,7 +371,7 @@ class SafetyMonitor extends StatefulWidget {
 
 class _SafetyMonitorState extends State<SafetyMonitor> {
   StreamSubscription? _accelerometerSubscription;
-  late AudioPlayer _audioPlayer; 
+  late AudioPlayer _audioPlayer;
 
   bool _isFreeFalling = false;
   DateTime? _freeFallTimestamp;
@@ -246,7 +384,7 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
   @override
   void initState() {
     super.initState();
-    _audioPlayer = AudioPlayer(); 
+    _audioPlayer = AudioPlayer();
     _initFallDetection();
   }
 
@@ -280,7 +418,7 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
 
     try {
       await _audioPlayer.setAsset('assets/audio/siren.mp3');
-      await _audioPlayer.setLoopMode(LoopMode.one); 
+      await _audioPlayer.setLoopMode(LoopMode.one);
       _audioPlayer.play();
     } catch (e) {
       debugPrint("Audio error: $e");
@@ -313,7 +451,7 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
 
   void _stopAlarm() {
     Vibration.cancel();
-    _audioPlayer.stop(); 
+    _audioPlayer.stop();
   }
 
   // --- THIS IS THE FIXED FUNCTION ---
@@ -365,8 +503,8 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsRemaining == 1) {
         timer.cancel();
-        Navigator.pop(context); 
-        widget.onTrigger(); 
+        Navigator.pop(context);
+        widget.onTrigger();
       } else {
         setState(() => _secondsRemaining--);
       }
@@ -381,15 +519,16 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations(LanguageNotifier().languageCode);
     return Scaffold(
       backgroundColor: Colors.red.shade900,
       body: SafeArea(
         child: Column(
           children: [
             const Spacer(flex: 1),
-            const Text(
-              "FALL DETECTED!",
-              style: TextStyle(
+            Text(
+              strings.get('fallDetected'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -397,9 +536,9 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            const Text(
-              "Calling assistance in:",
-              style: TextStyle(color: Colors.white70, fontSize: 18),
+            Text(
+              strings.get('callingAssistance'),
+              style: const TextStyle(color: Colors.white70, fontSize: 18),
             ),
             const SizedBox(height: 10),
             Text(
@@ -411,46 +550,49 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
               ),
             ),
             const Spacer(flex: 1),
-
             Center(
-              child: SizedBox(
-                width: 330, 
-                height: 330, 
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors
-                            .greenAccent
-                            .shade400, 
-                    shape: const CircleBorder(), 
-                    elevation: 10,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    widget.onCancel();
-                  },
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        size: 60,
-                        color: Colors.black87,
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        "I'M OKAY",
-                        style: TextStyle(
+              child: Semantics(
+                label: strings.get('imOkayButton'),
+                button: true,
+                child: SizedBox(
+                  width: 330,
+                  height: 330,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.greenAccent.shade400,
+                      shape: const CircleBorder(),
+                      elevation: 10,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      widget.onCancel();
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.check_circle_outline,
+                          size: 60,
                           color: Colors.black87,
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
                         ),
-                      ),
-                      Text(
-                        "(Cancel Alarm)",
-                        style: TextStyle(color: Colors.black54, fontSize: 16),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Text(
+                          strings.get('imOkay'),
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          strings.get('cancelAlarm'),
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
