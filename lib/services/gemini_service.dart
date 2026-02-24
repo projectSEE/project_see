@@ -119,6 +119,22 @@ class GeminiService {
     buffer.writeln('You are a helpful accessibility assistant. Use the following context to provide personalized responses:');
     buffer.writeln();
     
+    // User current location
+    final locationValue = context['userLocation'];
+    if (locationValue != null && locationValue is Map) {
+      buffer.writeln('User Current Location:');
+      final lat = locationValue['latitude'];
+      final lng = locationValue['longitude'];
+      final address = locationValue['address'];
+      if (lat != null && lng != null) {
+        buffer.writeln('- GPS Coordinates: $lat, $lng');
+      }
+      if (address != null && address.toString().isNotEmpty) {
+        buffer.writeln('- Address: $address');
+      }
+      buffer.writeln();
+    }
+    
     // Accessibility settings
     final settingsValue = context['accessibilitySettings'];
     if (settingsValue != null && settingsValue is Map) {
@@ -157,8 +173,8 @@ class GeminiService {
     if (poisValue != null && poisValue is List) {
       final pois = poisValue;
       if (pois.isNotEmpty) {
-        buffer.writeln('Nearby accessible locations:');
-        for (final poi in pois.take(5)) {
+        buffer.writeln('Nearby Points of Interest (within 1km):');
+        for (final poi in pois.take(10)) {
           if (poi is Map) {
             buffer.writeln('- ${poi['name']} (${poi['type']}): ${poi['description']}');
             final safetyNotes = poi['safetyNotes'];
@@ -170,6 +186,16 @@ class GeminiService {
         buffer.writeln();
       }
     }
+    
+    // POI add capability instructions
+    buffer.writeln('IMPORTANT - Adding Points of Interest:');
+    buffer.writeln('When the user wants to add/save/report a point of interest (POI) at their current location, you MUST include the following JSON marker in your response:');
+    buffer.writeln('{{ADD_POI:{"name":"<place name>","type":"<type>","description":"<short description>","safetyNotes":"<any safety info or empty>"}}}');
+    buffer.writeln('Valid types: restaurant, cafe, store, bank, atm, hospital, pharmacy, bus_station, subway_station, convenience_store, supermarket, gas_station, parking, toilet, elevator, ramp, crosswalk, landmark, danger_zone, other');
+    buffer.writeln('The POI will be saved at the user current GPS coordinates automatically.');
+    buffer.writeln('After the marker, confirm to the user that the POI has been saved.');
+    buffer.writeln('If the user asks about nearby POIs, refer to the "Nearby Points of Interest" section above.');
+    buffer.writeln();
     
     return buffer.toString();
   }

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../services/gemini_service.dart';
 import '../services/firestore_service.dart';
 import '../services/tts_service.dart';
@@ -72,6 +74,36 @@ class _ChatScreenState extends State<ChatScreen> {
     _ttsService.initialize();
     _initAudio();
     _initDatabase();
+    _requestLocationPermission();
+  }
+
+  /// Request location permission so the chatbot can access the user's location.
+  Future<void> _requestLocationPermission() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        debugPrint('Location services are disabled.');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          debugPrint('Location permission denied.');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('Location permission permanently denied.');
+        return;
+      }
+
+      debugPrint('Location permission granted.');
+    } catch (e) {
+      debugPrint('Error requesting location permission: $e');
+    }
   }
   
   Future<void> _initDatabase() async {
@@ -183,15 +215,34 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     try {
-      // Get user's location for POI context (optional)
+      // Get user's location for context (optional)
       double? latitude;
       double? longitude;
+      String? userAddress;
       try {
         final position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
         );
         latitude = position.latitude;
         longitude = position.longitude;
+        
+        // Reverse geocode to get address
+        try {
+          final placemarks = await placemarkFromCoordinates(latitude, longitude);
+          if (placemarks.isNotEmpty) {
+            final p = placemarks.first;
+            final parts = <String>[
+              if (p.street != null && p.street!.isNotEmpty) p.street!,
+              if (p.subLocality != null && p.subLocality!.isNotEmpty) p.subLocality!,
+              if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
+              if (p.administrativeArea != null && p.administrativeArea!.isNotEmpty) p.administrativeArea!,
+              if (p.country != null && p.country!.isNotEmpty) p.country!,
+            ];
+            userAddress = parts.join(', ');
+          }
+        } catch (e) {
+          debugPrint('Reverse geocoding failed: $e');
+        }
       } catch (e) {
         // Location not available, continue without it
         debugPrint('Location not available: $e');
@@ -202,6 +253,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _userId,
         latitude: latitude,
         longitude: longitude,
+        userAddress: userAddress,
       );
       
       final response = await _geminiService.sendMessage(
@@ -211,23 +263,58 @@ class _ChatScreenState extends State<ChatScreen> {
         databaseContext: databaseContext,
       );
       
+      // Parse and handle POI add markers from the response
+      String displayResponse = response;
+      final poiRegex = RegExp(r'\{\{ADD_POI:(.*?)\}\}');
+      final matches = poiRegex.allMatches(response);
+      for (final match in matches) {
+        try {
+          final poiJson = json.decode(match.group(1)!) as Map<String, dynamic>;
+          if (latitude != null && longitude != null) {
+            final saved = await _firestoreService.savePOI(
+              name: poiJson['name'] ?? 'Unknown',
+              type: poiJson['type'] ?? 'other',
+              description: poiJson['description'] ?? '',
+              latitude: latitude,
+              longitude: longitude,
+              safetyNotes: poiJson['safetyNotes'],
+              address: userAddress,
+              addedBy: _userId,
+            );
+            if (saved && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('📍 POI saved: ${poiJson['name']}'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('Error parsing POI from response: $e');
+        }
+        // Remove the marker from the displayed text
+        displayResponse = displayResponse.replaceAll(match.group(0)!, '').trim();
+      }
+      
       // Save assistant response to database
       await _firestoreService.saveMessage(
         _userId, 
         'assistant', 
-        response,
+        displayResponse,
         topicId: _currentTopicId,
       );
       
       setState(() {
         _messages.add({
           'role': 'model',
-          'text': response,
+          'text': displayResponse,
         });
         _isLoading = false;
       });
       _scrollToBottom();
-      _speak(response);
+      _speak(displayResponse);
       
     } catch (e) {
       setState(() {

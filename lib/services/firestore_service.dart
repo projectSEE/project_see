@@ -316,19 +316,27 @@ class FirestoreService {
 
   // ==================== AI Context ====================
 
-  /// Build context for AI including user settings and recent messages.
+  /// Build context for AI including user settings, location, and recent messages.
   Future<Map<String, dynamic>> buildContextForAI(
     String fullName, {
     double? latitude,
     double? longitude,
+    String? userAddress,
   }) async {
     final context = <String, dynamic>{};
 
     try {
       context['accessibilitySettings'] = await getAccessibilitySettings(fullName);
 
-      // Get nearby POIs if location provided
+      // Include user location if available
       if (latitude != null && longitude != null) {
+        context['userLocation'] = {
+          'latitude': latitude,
+          'longitude': longitude,
+          'address': userAddress,
+        };
+
+        // Get nearby POIs
         final allPOIs = await getAllPOIs();
         final nearbyPOIs = allPOIs.where((poi) {
           final coords = poi['coords'] as Map<String, dynamic>?;
@@ -351,5 +359,38 @@ class FirestoreService {
     }
 
     return context;
+  }
+
+  /// Save a new POI to the central pois collection (accessible by all users).
+  Future<bool> savePOI({
+    required String name,
+    required String type,
+    required String description,
+    required double latitude,
+    required double longitude,
+    String? safetyNotes,
+    String? address,
+    String? addedBy,
+  }) async {
+    try {
+      await _db.collection('pois').add({
+        'name': name,
+        'type': type,
+        'description': description,
+        'safetyNotes': safetyNotes ?? '',
+        'coords': {
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+        'address': address ?? '',
+        'addedBy': addedBy ?? 'anonymous',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('POI saved: $name');
+      return true;
+    } catch (e) {
+      print('Error saving POI: $e');
+      return false;
+    }
   }
 }
