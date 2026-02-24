@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../utils/accessibility_settings.dart';
 
 /// Centralized Text-to-Speech service (Singleton).
 ///
@@ -17,12 +18,14 @@ class TTSService {
   bool _isReady = false;
   bool _isSpeaking = false;
   String _lastSpoken = '';
+  String _currentLanguageCode = 'en-US';
   DateTime _lastSpokenTime = DateTime(2000);
   Completer<void>? _initCompleter;
 
   // ── Public getters ──
   bool get isReady => _isReady;
   bool get isSpeaking => _isSpeaking;
+  String get currentLanguage => _currentLanguageCode;
 
   // ── Initialization ──
 
@@ -67,7 +70,7 @@ class TTSService {
           await Future.delayed(Duration(seconds: attempt));
 
           // setLanguage will throw/fail if the engine isn't bound
-          await _tts!.setLanguage('en-US');
+          await _tts!.setLanguage(_currentLanguageCode);
           await _tts!.setSpeechRate(0.5);
           await _tts!.setVolume(1.0);
           await _tts!.setPitch(1.0);
@@ -118,6 +121,11 @@ class TTSService {
     bool force = false,
     bool preventDuplicates = true,
   }) async {
+    // 1. Check Voice Guidance Global Override
+    if (!await AccessibilitySettings.isVoiceGuidanceEnabled()) {
+      return;
+    }
+
     if (message.trim().isEmpty) return;
 
     // Lazy init
@@ -151,7 +159,9 @@ class TTSService {
 
       // result != 1 means the engine rejected the call
       if (result != 1) {
-        debugPrint('TTS: speak() failed (result=$result), retrying after delay...');
+        debugPrint(
+          'TTS: speak() failed (result=$result), retrying after delay...',
+        );
         // Wait for the engine to bind, then retry once
         await Future.delayed(const Duration(seconds: 3));
         final retry = await _tts!.speak(message);
@@ -199,6 +209,28 @@ class TTSService {
     try {
       await _tts?.setSpeechRate(rate.clamp(0.0, 1.0));
     } catch (_) {}
+  }
+
+  /// Change the engine language dynamically based on app language.
+  Future<void> setAppLanguage(String langCode) async {
+    if (langCode == 'zh') {
+      _currentLanguageCode = 'zh-CN';
+    } else if (langCode == 'ms') {
+      _currentLanguageCode = 'ms-MY';
+    } else if (langCode == 'ta') {
+      _currentLanguageCode = 'ta-IN';
+    } else {
+      _currentLanguageCode = 'en-US';
+    }
+
+    if (_isReady && _tts != null) {
+      try {
+        await _tts!.setLanguage(_currentLanguageCode);
+        debugPrint('TTS: Language dynamically set to $_currentLanguageCode');
+      } catch (e) {
+        debugPrint('TTS: Failed to set language to $_currentLanguageCode: $e');
+      }
+    }
   }
 
   /// Clean up. Normally never called for a singleton.

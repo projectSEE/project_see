@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/localization/app_localizations.dart';
 import '../core/services/language_provider.dart';
 import '../main.dart';
+import '../services/tts_service.dart';
 import '../utils/accessibility_settings.dart';
 
 /// Settings screen with WCAG-accessible controls.
@@ -16,10 +17,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final LanguageNotifier _langNotifier = LanguageNotifier();
   final ThemeNotifier _themeNotifier = ThemeNotifier();
+  final TTSService _ttsService = TTSService();
 
   double _fontScale = 1.0;
   double _ttsSpeed = 0.5;
   bool _hapticEnabled = true;
+  bool _voiceGuidanceEnabled =
+      AccessibilitySettings.defaultVoiceGuidanceEnabled;
 
   @override
   void initState() {
@@ -44,11 +48,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final scale = await AccessibilitySettings.getFontScale();
     final rate = await AccessibilitySettings.getTtsSpeechRate();
     final haptic = await AccessibilitySettings.isHapticFeedbackEnabled();
+    final voiceGuidance = await AccessibilitySettings.isVoiceGuidanceEnabled();
     if (mounted) {
       setState(() {
         _fontScale = scale;
         _ttsSpeed = rate;
         _hapticEnabled = haptic;
+        _voiceGuidanceEnabled = voiceGuidance;
       });
     }
   }
@@ -103,7 +109,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => _langNotifier.setLanguage(entry.key),
+                    onTap: () async {
+                      await _langNotifier.setLanguage(entry.key);
+                      final newStrings = AppLocalizations(entry.key);
+                      await _ttsService.speakUrgent(
+                        newStrings.get('usingLanguage'),
+                      );
+                    },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         vertical: 16,
@@ -151,6 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Icons.light_mode,
             ThemeMode.light,
             theme,
+            strings,
           ),
           const SizedBox(height: 8),
           _buildThemeOption(
@@ -158,6 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Icons.dark_mode,
             ThemeMode.dark,
             theme,
+            strings,
           ),
 
           const SizedBox(height: 28),
@@ -170,37 +184,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('A', style: TextStyle(fontSize: 14)),
-              Expanded(
-                child: Semantics(
-                  label:
-                      '${strings.get('textSize')} ${strings.get('scale')}: ${_fontScale.toStringAsFixed(1)}',
-                  slider: true,
-                  child: Slider(
-                    value: _fontScale,
-                    min: 0.8,
-                    max: 2.0,
-                    divisions: 12,
-                    label: '${_fontScale.toStringAsFixed(1)}x',
-                    onChanged: (val) async {
-                      setState(() => _fontScale = val);
-                      await AccessibilitySettings.setFontScale(val);
-                      await TextScaleNotifier().setScale(val); // Rebuild app
-                    },
-                  ),
+              Semantics(
+                label: 'Decrease text size',
+                button: true,
+                child: IconButton(
+                  icon: const Icon(Icons.remove_circle_outline, size: 48),
+                  color: theme.colorScheme.primary,
+                  onPressed:
+                      _fontScale <= 0.8
+                          ? null
+                          : () async {
+                            final double newVal = double.parse(
+                              (_fontScale - 0.1).toStringAsFixed(1),
+                            );
+                            if (newVal >= 0.8) {
+                              setState(() => _fontScale = newVal);
+                              await AccessibilitySettings.setFontScale(newVal);
+                              await TextScaleNotifier().setScale(
+                                newVal,
+                              ); // Rebuild app
+                              await _ttsService.speakUrgent(
+                                '${strings.get('textSizeChanged')} ${newVal.toStringAsFixed(1)}',
+                              );
+                            }
+                          },
                 ),
               ),
-              const Text(
-                'A',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              const SizedBox(width: 32),
+              Text(
+                '${strings.get('scale')}: ${_fontScale.toStringAsFixed(1)}x',
+                style: TextStyle(
+                  fontSize: 16 * _fontScale,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(width: 32),
+              Semantics(
+                label: 'Increase text size',
+                button: true,
+                child: IconButton(
+                  icon: const Icon(Icons.add_circle_outline, size: 48),
+                  color: theme.colorScheme.primary,
+                  onPressed:
+                      _fontScale >= 2.0
+                          ? null
+                          : () async {
+                            final double newVal = double.parse(
+                              (_fontScale + 0.1).toStringAsFixed(1),
+                            );
+                            if (newVal <= 2.0) {
+                              setState(() => _fontScale = newVal);
+                              await AccessibilitySettings.setFontScale(newVal);
+                              await TextScaleNotifier().setScale(
+                                newVal,
+                              ); // Rebuild app
+                              await _ttsService.speakUrgent(
+                                '${strings.get('textSizeChanged')} ${newVal.toStringAsFixed(1)}',
+                              );
+                            }
+                          },
+                ),
               ),
             ],
-          ),
-          Text(
-            '${strings.get('scale')}: ${_fontScale.toStringAsFixed(1)}x',
-            style: TextStyle(fontSize: 16 * _fontScale),
-            textAlign: TextAlign.center,
           ),
 
           const SizedBox(height: 28),
@@ -212,26 +260,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
             theme,
           ),
           const SizedBox(height: 12),
-          Semantics(
-            label: '${strings.get('ttsSpeed')}: ${(_ttsSpeed * 100).toInt()}%',
-            slider: true,
-            child: Slider(
-              value: _ttsSpeed,
-              min: 0.1,
-              max: 1.0,
-              divisions: 9,
-              label: '${(_ttsSpeed * 100).toInt()}%',
-              onChanged: (val) async {
-                setState(() => _ttsSpeed = val);
-                await AccessibilitySettings.setTtsSpeechRate(val);
-                await AccessibilitySettings.applyTtsSettings();
-              },
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Semantics(
+                label: 'Decrease speech speed',
+                button: true,
+                child: IconButton(
+                  icon: const Icon(Icons.remove_circle_outline, size: 48),
+                  color: theme.colorScheme.primary,
+                  onPressed:
+                      _ttsSpeed <= 0.1
+                          ? null
+                          : () async {
+                            final double newVal = double.parse(
+                              (_ttsSpeed - 0.1).toStringAsFixed(1),
+                            );
+                            if (newVal >= 0.1) {
+                              setState(() => _ttsSpeed = newVal);
+                              await AccessibilitySettings.setTtsSpeechRate(
+                                newVal,
+                              );
+                              await AccessibilitySettings.applyTtsSettings();
+                              await _ttsService.speakUrgent(
+                                '${strings.get('speechSpeedChanged')} ${(newVal * 100).toInt()}%',
+                              );
+                            }
+                          },
+                ),
+              ),
+              const SizedBox(width: 32),
+              Text(
+                '${strings.get('speed')}: ${(_ttsSpeed * 100).toInt()}%',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(width: 32),
+              Semantics(
+                label: 'Increase speech speed',
+                button: true,
+                child: IconButton(
+                  icon: const Icon(Icons.add_circle_outline, size: 48),
+                  color: theme.colorScheme.primary,
+                  onPressed:
+                      _ttsSpeed >= 1.0
+                          ? null
+                          : () async {
+                            final double newVal = double.parse(
+                              (_ttsSpeed + 0.1).toStringAsFixed(1),
+                            );
+                            if (newVal <= 1.0) {
+                              setState(() => _ttsSpeed = newVal);
+                              await AccessibilitySettings.setTtsSpeechRate(
+                                newVal,
+                              );
+                              await AccessibilitySettings.applyTtsSettings();
+                              await _ttsService.speakUrgent(
+                                '${strings.get('speechSpeedChanged')} ${(newVal * 100).toInt()}%',
+                              );
+                            }
+                          },
+                ),
+              ),
+            ],
           ),
-          Text(
-            '${strings.get('speed')}: ${(_ttsSpeed * 100).toInt()}%',
-            style: const TextStyle(fontSize: 16),
-            textAlign: TextAlign.center,
+
+          const SizedBox(height: 28),
+
+          // ── Voice Guidance ──
+          _buildSectionHeader(
+            strings.get('voiceGuidance'),
+            Icons.record_voice_over_outlined,
+            theme,
+          ),
+          const SizedBox(height: 12),
+          Semantics(
+            label:
+                _voiceGuidanceEnabled
+                    ? strings.get('voiceGuidanceEnabled')
+                    : strings.get('voiceGuidanceDisabled'),
+            child: MergeSemantics(
+              child: SwitchListTile(
+                title: Text(
+                  strings.get('voiceGuidance'),
+                  style: TextStyle(
+                    fontSize: 18 * _fontScale,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  _voiceGuidanceEnabled
+                      ? strings.get('enabled')
+                      : strings.get('disabled'),
+                  style: TextStyle(fontSize: 14 * _fontScale),
+                ),
+                value: _voiceGuidanceEnabled,
+                onChanged: (val) async {
+                  setState(() => _voiceGuidanceEnabled = val);
+                  await AccessibilitySettings.setVoiceGuidanceEnabled(val);
+
+                  // Only speak if we just turned it ON
+                  if (val) {
+                    await _ttsService.speakUrgent(
+                      strings.get('voiceGuidanceEnabled'),
+                    );
+                  }
+                },
+                activeColor: theme.colorScheme.primary,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ),
 
           const SizedBox(height: 28),
@@ -257,6 +398,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (val) async {
                 setState(() => _hapticEnabled = val);
                 await AccessibilitySettings.setHapticFeedbackEnabled(val);
+                await _ttsService.speakUrgent(
+                  val
+                      ? strings.get('hapticEnabled')
+                      : strings.get('hapticDisabled'),
+                );
               },
               secondary: Icon(
                 _hapticEnabled ? Icons.vibration : Icons.do_not_touch,
@@ -282,6 +428,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _themeNotifier.setDarkMode(false);
                   await TextScaleNotifier().setScale(1.0); // Reset scale
                   await _loadSettings();
+                  await _ttsService.speakUrgent(strings.get('resetConfirm'));
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(strings.get('resetConfirm'))),
@@ -325,6 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     IconData icon,
     ThemeMode mode,
     ThemeData theme,
+    AppLocalizations strings,
   ) {
     final isSelected = _themeNotifier.themeMode == mode;
     return Semantics(
@@ -345,7 +493,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _themeNotifier.setDarkMode(mode == ThemeMode.dark),
+          onTap: () async {
+            _themeNotifier.setDarkMode(mode == ThemeMode.dark);
+            await _ttsService.speakUrgent(
+              mode == ThemeMode.dark
+                  ? strings.get('usingDarkMode')
+                  : strings.get('usingLightMode'),
+            );
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
             child: Row(

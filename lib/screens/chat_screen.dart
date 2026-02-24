@@ -209,9 +209,9 @@ class _ChatScreenState extends State<ChatScreen> {
         debugPrint('Location not available: $e');
       }
 
-      // Build context from database
+      // Get user settings for personalized behavior
       final databaseContext = await _firestoreService.buildContextForAI(
-        _userId,
+        _userId, // Assuming _userId is equivalent to user.uid here
         latitude: latitude,
         longitude: longitude,
       );
@@ -507,16 +507,24 @@ class _ChatScreenState extends State<ChatScreen> {
     final strings = AppLocalizations(_langNotifier.languageCode);
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.get('chatTitle')),
-        leading: Builder(
-          builder:
-              (context) => IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-                tooltip: strings.get('settingsAndHistory'),
-              ),
+        leading: Semantics(
+          label: strings.get('back'),
+          button: true,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back, size: 28),
+            tooltip: strings.get('back'),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
         actions: [
+          Builder(
+            builder:
+                (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  tooltip: strings.get('settingsAndHistory'),
+                ),
+          ),
           // Text-to-Speech Toggle
           IconButton(
             icon: Icon(

@@ -12,10 +12,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart';
 import 'screens/awareness_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/settings_screen.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/services/language_provider.dart';
 import 'utils/accessibility_settings.dart';
+import 'services/tts_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -160,11 +162,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final LanguageNotifier _langNotifier = LanguageNotifier();
+  final TTSService _ttsService = TTSService();
 
   @override
   void initState() {
     super.initState();
     _langNotifier.addListener(_refresh);
+    _initTts();
+  }
+
+  Future<void> _initTts() async {
+    await _ttsService.initialize();
+    final strings = AppLocalizations(_langNotifier.languageCode);
+    await _ttsService.speak(strings.get('welcome'));
   }
 
   @override
@@ -182,123 +192,155 @@ class _HomeScreenState extends State<HomeScreen> {
     final strings = AppLocalizations(_langNotifier.languageCode);
     final theme = Theme.of(context);
 
-    // Menu items — each maps to a development screen
-    final List<Map<String, dynamic>> menuItems = [
-      {
-        'icon': Icons.camera_alt,
-        'label': strings.get('obstacleDetection'),
-        'color': theme.colorScheme.primary,
-        'screen': const ObstacleDetectorScreen(),
-      },
-      {
-        'icon': Icons.chat,
-        'label': strings.get('chatbot'),
-        'color': theme.colorScheme.primary,
-        'screen': const ChatScreen(),
-      },
-      {
-        'icon': Icons.visibility_off_outlined,
-        'label': strings.get('visionAwareness'),
-        'color': Colors.purple,
-        'screen': const AwarenessMenuScreen(),
-      },
-      {
-        'icon': Icons.settings,
-        'label': strings.get('settings'),
-        'color': theme.colorScheme.secondary,
-        'screen': const SettingsScreen(),
-      },
-    ];
-
     return Scaffold(
       appBar: AppBar(
         title: Text(strings.get('appTitle')),
         centerTitle: true,
-        actions: [
-          Semantics(
-            label: strings.get('signOut'),
-            button: true,
-            child: IconButton(
-              icon: const Icon(Icons.logout, size: 28),
-              tooltip: strings.get('signOut'),
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-              },
-            ),
-          ),
-        ],
+        actions: [],
       ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
-              // Welcome text
-              const SizedBox(height: 8),
-              Text(
-                strings.get('welcome'),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                strings.get('chooseFeature'),
-                style: TextStyle(
-                  fontSize: 16,
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-
-              // 九宫格 Grid
+              // Scrollable Welcome text & List Menu
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Adjust aspect ratio based on text scale factor to prevent vertical overflow
-                    final textScale = MediaQuery.textScalerOf(context).scale(1);
-                    final crossAxisCount = 2;
-                    final spacing = 16.0;
-                    final itemWidth =
-                        (constraints.maxWidth -
-                            spacing * (crossAxisCount - 1)) /
-                        crossAxisCount;
-                    // Base item height without scaling is roughly equal to itemWidth, plus extra space for large text.
-                    final itemHeight =
-                        itemWidth +
-                        (30 * textScale); // Add extra height for text
-                    final childAspectRatio = itemWidth / itemHeight;
-
-                    return GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: spacing,
-                        mainAxisSpacing: spacing,
-                        childAspectRatio: childAspectRatio,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Welcome text
+                      const SizedBox(height: 8),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          strings.get('welcome'),
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                      itemCount: menuItems.length,
-                      itemBuilder: (context, index) {
-                        final item = menuItems[index];
-                        return _buildMenuTile(
-                          context,
-                          icon: item['icon'],
-                          label: item['label'],
-                          color: item['color'],
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => item['screen'] as Widget,
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+                      const SizedBox(height: 6),
+                      Text(
+                        strings.get('chooseFeature'),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+
+                      // —— USER PROFILE ——
+                      _buildFeatureButton(
+                        icon: Icons.person_outline,
+                        label: strings.get('profileTitle'),
+                        subtitle: 'Update your details',
+                        semanticLabel: '${strings.get('profileTitle')} button',
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingProfile'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ProfileScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— OBSTACLE DETECTION ——
+                      _buildFeatureButton(
+                        icon: Icons.camera_alt,
+                        label: strings.get('obstacleDetection'),
+                        subtitle:
+                            'Camera-based navigation', // Localize if possible or leave out
+                        semanticLabel:
+                            '${strings.get('obstacleDetection')} button',
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingObstacleDetection'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ObstacleDetectorScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— CHATBOT ——
+                      _buildFeatureButton(
+                        icon: Icons.chat,
+                        label: strings.get('chatbot'),
+                        subtitle: 'AI assistant',
+                        semanticLabel: '${strings.get('chatbot')} button',
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingChatbot'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ChatScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— VISION AWARENESS ——
+                      _buildFeatureButton(
+                        icon: Icons.visibility_off_outlined,
+                        label: strings.get('visionAwareness'),
+                        subtitle: 'Educational simulations',
+                        semanticLabel:
+                            '${strings.get('visionAwareness')} button',
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingVisionAwareness'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AwarenessMenuScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— SETTINGS ——
+                      _buildFeatureButton(
+                        icon: Icons.settings,
+                        label: strings.get('settings'),
+                        subtitle: 'Accessibility & preferences',
+                        semanticLabel: '${strings.get('settings')} button',
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingSettings'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SettingsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -308,46 +350,59 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Builds a large, accessible grid tile with icon, label, and Semantics.
-  Widget _buildMenuTile(
-    BuildContext context, {
+  Widget _buildFeatureButton({
     required IconData icon,
     required String label,
-    required Color color,
+    required String subtitle,
+    required String semanticLabel,
     required VoidCallback onTap,
   }) {
     return Semantics(
-      label: label,
       button: true,
-      child: Material(
-        color: color.withOpacity(0.08),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: color, width: 2),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+      label: semanticLabel,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white,
+              width: 2,
+            ), // High contrast border
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.1),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 56, color: color),
+              Icon(icon, color: Colors.white, size: 48),
               const SizedBox(height: 12),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9), // Enhanced readability
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

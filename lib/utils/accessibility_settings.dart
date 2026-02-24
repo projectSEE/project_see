@@ -9,15 +9,17 @@ class AccessibilitySettings {
   static const String _fontScaleKey = 'font_scale';
   static const String _hapticFeedbackKey = 'haptic_feedback_enabled';
   static const String _sttEnabledKey = 'stt_enabled';
+  static const String _voiceGuidanceEnabledKey = 'voice_guidance_enabled';
 
   // Default values
   static const double defaultSpeechRate = 0.5;
   static const double defaultFontScale = 1.0;
   static const bool defaultHapticEnabled = true;
   static const bool defaultSttEnabled = false;
+  static const bool defaultVoiceGuidanceEnabled = true;
 
   // ============== TTS Speed Control ==============
-  
+
   /// Get current TTS speech rate (0.0 - 1.0)
   static Future<double> getTtsSpeechRate() async {
     final prefs = await SharedPreferences.getInstance();
@@ -65,7 +67,9 @@ class AccessibilitySettings {
   }
 
   /// Trigger haptic feedback if enabled
-  static Future<void> triggerHaptic({HapticType type = HapticType.light}) async {
+  static Future<void> triggerHaptic({
+    HapticType type = HapticType.light,
+  }) async {
     final enabled = await isHapticFeedbackEnabled();
     if (!enabled) return;
 
@@ -99,6 +103,21 @@ class AccessibilitySettings {
     await prefs.setBool(_sttEnabledKey, enabled);
   }
 
+  // ============== Voice Guidance Control ==============
+
+  /// Check if Voice Guidance (TTS) is globally enabled
+  static Future<bool> isVoiceGuidanceEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_voiceGuidanceEnabledKey) ??
+        defaultVoiceGuidanceEnabled;
+  }
+
+  /// Enable/disable Voice Guidance
+  static Future<void> setVoiceGuidanceEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_voiceGuidanceEnabledKey, enabled);
+  }
+
   // ============== Reset All Settings ==============
 
   /// Reset all accessibility settings to defaults
@@ -107,13 +126,9 @@ class AccessibilitySettings {
     await setFontScale(defaultFontScale);
     await setHapticFeedbackEnabled(defaultHapticEnabled);
     await setSttEnabled(defaultSttEnabled);
+    await setVoiceGuidanceEnabled(defaultVoiceGuidanceEnabled);
   }
 }
 
 /// Types of haptic feedback
-enum HapticType {
-  light,
-  medium,
-  heavy,
-  selection,
-}
+enum HapticType { light, medium, heavy, selection }

@@ -250,6 +250,12 @@ class AppLocalizations {
       'phoneHint': 'e.g. +60123456789',
       'fullNameRequired': 'Full Name *',
       'emailRequired': 'Email Address *',
+      // Profile Feature
+      'profileTitle': 'User Profile',
+      'openingProfile': 'Opening user profile',
+      'updateProfile': 'Save Changes',
+      'profileUpdated': 'Profile updated successfully!',
+      'updateFailed': 'Failed to update profile',
       'phoneRequired': 'Phone Number *',
       'passwordRequired': 'Password *',
       'confirmPasswordRequired': 'Confirm Password *',
@@ -284,6 +290,22 @@ class AppLocalizations {
       'goBackHome': 'Go back to home screen',
       'obstacleDetectorMenuTts':
           'Obstacle detector menu. Three options available: Object Detection, Live Assistant, and Navigation.',
+
+      // Feature & Settings TTS
+      'usingLanguage': 'You are using English',
+      'usingDarkMode': 'Using dark mode',
+      'usingLightMode': 'Using light mode',
+      'textSizeChanged': 'Text size changed to ',
+      'speechSpeedChanged': 'Speech speed changed to ',
+      'hapticEnabled': 'Haptic feedback enabled',
+      'hapticDisabled': 'Haptic feedback disabled',
+      'voiceGuidance': 'Voice Guidance',
+      'voiceGuidanceEnabled': 'Voice Guidance is enabled',
+      'voiceGuidanceDisabled': 'Voice Guidance is disabled',
+      'openingChatbot': 'Opening AI chatbot',
+      'openingVisionAwareness': 'Opening vision awareness',
+      'openingSettings': 'Opening settings',
+      'openingObstacleDetection': 'Opening obstacle detection',
     },
     'zh': {
       // Home Screen
@@ -508,7 +530,13 @@ class AppLocalizations {
       'nameHint': '例如 张三',
       'phoneHint': '例如 +60123456789',
       'fullNameRequired': '全名 *',
-      'emailRequired': '电子邮件 *',
+      'emailRequired': '电子邮件地址 *',
+      // Profile Feature
+      'profileTitle': '用户个人资料',
+      'openingProfile': '正在打开用户个人资料',
+      'updateProfile': '保存更改',
+      'profileUpdated': '个人资料更新成功！',
+      'updateFailed': '更新个人资料失败',
       'phoneRequired': '电话 *',
       'passwordRequired': '密码 *',
       'confirmPasswordRequired': '确认密码 *',
@@ -538,6 +566,22 @@ class AppLocalizations {
       'openingNavigation': '正在打开导航',
       'goBackHome': '返回主屏幕',
       'obstacleDetectorMenuTts': '障碍物检测器菜单。三个可用选项：物体检测、实时助手和导航。',
+
+      // Feature & Settings TTS
+      'usingLanguage': '您正在使用中文',
+      'usingDarkMode': '使用深色模式',
+      'usingLightMode': '使用浅色模式',
+      'textSizeChanged': '文字大小更改为 ',
+      'speechSpeedChanged': '语速更改为 ',
+      'hapticEnabled': '触觉反馈已开启',
+      'hapticDisabled': '触觉反馈已关闭',
+      'voiceGuidance': '语音引导',
+      'voiceGuidanceEnabled': '语音引导已开启',
+      'voiceGuidanceDisabled': '语音引导已关闭',
+      'openingChatbot': '正在打开 AI 聊天机器人',
+      'openingVisionAwareness': '正在打开视觉意识',
+      'openingSettings': '正在打开设置',
+      'openingObstacleDetection': '正在打开障碍物检测',
     },
     'ms': {
       // Home Screen
@@ -782,6 +826,12 @@ class AppLocalizations {
       'phoneHint': 'cth. +60123456789',
       'fullNameRequired': 'Nama Penuh *',
       'emailRequired': 'Alamat E-mel *',
+      // Profile Feature
+      'profileTitle': 'Profil Pengguna',
+      'openingProfile': 'Membuka profil pengguna',
+      'updateProfile': 'Simpan Perubahan',
+      'profileUpdated': 'Profil berjaya dikemas kini!',
+      'updateFailed': 'Gagal mengemas kini profil',
       'phoneRequired': 'Nombor Telefon *',
       'passwordRequired': 'Kata Laluan *',
       'confirmPasswordRequired': 'Sahkan Kata Laluan *',
@@ -819,6 +869,22 @@ class AppLocalizations {
       'goBackHome': 'Kembali ke skrin utama',
       'obstacleDetectorMenuTts':
           'Menu pengesan halangan. Tiga pilihan tersedia: Pengesanan Objek, Pembantu Langsung, dan Navigasi.',
+
+      // Feature & Settings TTS
+      'usingLanguage': 'Anda sedang menggunakan bahasa Melayu',
+      'usingDarkMode': 'Menggunakan mod gelap',
+      'usingLightMode': 'Menggunakan mod cerah',
+      'textSizeChanged': 'Saiz teks ditukar ke ',
+      'speechSpeedChanged': 'Kelajuan pertuturan ditukar ke ',
+      'hapticEnabled': 'Maklum balas sentuhan diaktifkan',
+      'hapticDisabled': 'Maklum balas sentuhan dilumpuhkan',
+      'voiceGuidance': 'Panduan Suara',
+      'voiceGuidanceEnabled': 'Panduan bunyi telah dihidupkan',
+      'voiceGuidanceDisabled': 'Panduan bunyi telah dimatikan',
+      'openingChatbot': 'Membuka Chatbot AI',
+      'openingVisionAwareness': 'Membuka kesedaran penglihatan',
+      'openingSettings': 'Membuka tetapan',
+      'openingObstacleDetection': 'Membuka pengesanan halangan',
     },
     'ta': {
       // Home Screen
@@ -1064,7 +1130,13 @@ class AppLocalizations {
       'nameHint': 'எ.கா. குமார்',
       'phoneHint': 'எ.கா. +60123456789',
       'fullNameRequired': 'முழு பெயர் *',
-      'emailRequired': 'மின்னஞ்சல் *',
+      'emailRequired': 'மின்னஞ்சல் முகவரி *',
+      // Profile Feature
+      'profileTitle': 'பயனர் சுயவிவரம்',
+      'openingProfile': 'பயனர் சுயவிவரத்தைத் திறக்கிறது',
+      'updateProfile': 'மாற்றங்களை சேமிக்கவும்',
+      'profileUpdated': 'சுயவிவரம் வெற்றிகரமாக புதுப்பிக்கப்பட்டது!',
+      'updateFailed': 'சுயவிவரத்தைப் புதுப்பிப்பதில் தோல்வி',
       'phoneRequired': 'தொலைபேசி எண் *',
       'passwordRequired': 'கடவுச்சொல் *',
       'confirmPasswordRequired': 'கடவுச்சொல்லை உறுதிப்படுத்து *',
@@ -1102,6 +1174,22 @@ class AppLocalizations {
       'goBackHome': 'முகப்புத் திரைக்குத் திரும்பு',
       'obstacleDetectorMenuTts':
           'தடை கண்டறிதல் மெனு. மூன்று விருப்பங்கள் கிடைக்கின்றன: பொருள் கண்டறிதல், நேரடி உதவியாளர், மற்றும் வழிகாட்டுதல்.',
+
+      // Feature & Settings TTS
+      'usingLanguage': 'நீங்கள் தமிழ் பயன்படுத்துகிறீர்கள்',
+      'usingDarkMode': 'இருண்ட பயன்முறையைப் பயன்படுத்துகிறது',
+      'usingLightMode': 'ஒளி பயன்முறையைப் பயன்படுத்துகிறது',
+      'textSizeChanged': 'உரை அளவு மாற்றப்பட்டுள்ளது ',
+      'speechSpeedChanged': 'பேச்சு வேகம் மாற்றப்பட்டுள்ளது ',
+      'hapticEnabled': 'தொடு பின்னூட்டம் இயக்கப்பட்டது',
+      'hapticDisabled': 'தொடு பின்னூட்டம் முடக்கப்பட்டது',
+      'voiceGuidance': 'குரல் வழிகாட்டல்',
+      'voiceGuidanceEnabled': 'குரல் வழிகாட்டல் இயக்கப்பட்டுள்ளது',
+      'voiceGuidanceDisabled': 'குரல் வழிகாட்டல் முடக்கப்பட்டுள்ளது',
+      'openingChatbot': 'AI அரட்டையைத் திறக்கிறது',
+      'openingVisionAwareness': 'பார்வை விழிப்புணர்வைத் திறக்கிறது',
+      'openingSettings': 'அமைப்புகளைத் திறக்கிறது',
+      'openingObstacleDetection': 'தடை கண்டறிதலைத் திறக்கிறது',
     },
   };
 

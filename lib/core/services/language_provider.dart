@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/tts_service.dart';
 
 /// Language notifier — follows the same ChangeNotifier pattern
 /// as development's ThemeNotifier for consistency.
@@ -26,6 +27,10 @@ class LanguageNotifier extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _languageCode = prefs.getString(_languageKey) ?? 'en';
+
+      // Sync initial language to TTS immediately
+      await TTSService().setAppLanguage(_languageCode);
+
       notifyListeners();
     } catch (e) {
       debugPrint('LanguageNotifier: init error: $e');
@@ -40,6 +45,8 @@ class LanguageNotifier extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_languageKey, code);
+      // Immediately tell TTSService there's a new language so reading/STT behaves appropriately
+      await TTSService().setAppLanguage(code);
     } catch (e) {
       debugPrint('LanguageNotifier: save error: $e');
     }

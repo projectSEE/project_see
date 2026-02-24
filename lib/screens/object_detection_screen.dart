@@ -36,9 +36,11 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
   final TTSService _ttsService = TTSService();
   final VibrationService _vibrationService = VibrationService();
   final GeminiService _geminiService = GeminiService();
-  final TextRecognitionService _textRecognitionService = TextRecognitionService();
+  final TextRecognitionService _textRecognitionService =
+      TextRecognitionService();
   final ImageLabelingService _imageLabelingService = ImageLabelingService();
-  final ContextAggregatorService _contextAggregator = ContextAggregatorService();
+  final ContextAggregatorService _contextAggregator =
+      ContextAggregatorService();
   final DepthEstimationService _depthService = DepthEstimationService();
   bool _depthModelLoaded = false;
 
@@ -185,8 +187,14 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
     // Run all ML Kit APIs in parallel
     final obstaclesFuture = _mlKitService.processImage(image, _selectedCamera!);
-    final textFuture = _textRecognitionService.processImage(image, _selectedCamera!);
-    final labelsFuture = _imageLabelingService.processImage(image, _selectedCamera!);
+    final textFuture = _textRecognitionService.processImage(
+      image,
+      _selectedCamera!,
+    );
+    final labelsFuture = _imageLabelingService.processImage(
+      image,
+      _selectedCamera!,
+    );
 
     final obstacles = await obstaclesFuture;
 
@@ -204,24 +212,34 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
     if (mounted && obstacles.isNotEmpty) {
       setState(() => _obstacles = obstacles);
 
-      final closest = obstacles.reduce((a, b) =>
-          a.relativeSize > b.relativeSize ? a : b);
+      final closest = obstacles.reduce(
+        (a, b) => a.relativeSize > b.relativeSize ? a : b,
+      );
 
       double proximity = closest.relativeSize;
       bool isApproaching = false;
 
       if (_depthModelLoaded && _depthService.isInitialized) {
-        final normalizedX = (closest.boundingBox.center.dx / image.width).clamp(0.0, 1.0);
-        final normalizedY = (closest.boundingBox.center.dy / image.height).clamp(0.0, 1.0);
+        final normalizedX = (closest.boundingBox.center.dx / image.width).clamp(
+          0.0,
+          1.0,
+        );
+        final normalizedY = (closest.boundingBox.center.dy / image.height)
+            .clamp(0.0, 1.0);
 
         final depthChangeResult = await _depthService.estimateDepthWithTrend(
-          image, normalizedX, normalizedY, closest.label,
+          image,
+          normalizedX,
+          normalizedY,
+          closest.label,
         );
 
         if (depthChangeResult != null) {
           proximity = depthChangeResult.current.normalizedDepth;
           isApproaching = depthChangeResult.isApproaching;
-          debugPrint('🧠 Depth: ${closest.label} - ${depthChangeResult.fullDescription}');
+          debugPrint(
+            '🧠 Depth: ${closest.label} - ${depthChangeResult.fullDescription}',
+          );
         }
       }
 
@@ -251,7 +269,9 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
       );
 
       if (textBlocks.isNotEmpty) {
-        debugPrint('📖 Text detected: ${textBlocks.map((t) => t.text).join(", ")}');
+        debugPrint(
+          '📖 Text detected: ${textBlocks.map((t) => t.text).join(", ")}',
+        );
       }
       if (labels.isNotEmpty) {
         debugPrint('🏷️ Labels: ${labels.map((l) => l.label).join(", ")}');
@@ -266,11 +286,16 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
       if (!_contextAggregator.shouldUpdate()) return;
 
-      final obstacleInfos = obstacles.map((o) => ObstacleInfo(
-        label: o.label,
-        position: o.position,
-        relativeSize: o.relativeSize,
-      )).toList();
+      final obstacleInfos =
+          obstacles
+              .map(
+                (o) => ObstacleInfo(
+                  label: o.label,
+                  position: o.position,
+                  relativeSize: o.relativeSize,
+                ),
+              )
+              .toList();
 
       final context = _contextAggregator.aggregate(
         obstacles: obstacleInfos,
@@ -315,19 +340,23 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
   }
 
   Future<void> _captureAndDetect() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    if (_cameraController == null || !_cameraController!.value.isInitialized)
+      return;
 
     try {
       final XFile imageFile = await _cameraController!.takePicture();
       final obstacles = await _mlKitService.processImageFile(imageFile.path);
 
-      try { await File(imageFile.path).delete(); } catch (_) {}
+      try {
+        await File(imageFile.path).delete();
+      } catch (_) {}
 
       if (mounted) {
         setState(() => _obstacles = obstacles);
         if (obstacles.isNotEmpty) {
-          final closest = obstacles.reduce((a, b) =>
-              a.relativeSize > b.relativeSize ? a : b);
+          final closest = obstacles.reduce(
+            (a, b) => a.relativeSize > b.relativeSize ? a : b,
+          );
           await _vibrationService.vibrateForProximity(closest.relativeSize);
         }
       }
@@ -340,8 +369,9 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
   void _announceClosestObstacle() async {
     if (_obstacles.isEmpty) return;
-    final closest = _obstacles.reduce((a, b) =>
-        a.relativeSize > b.relativeSize ? a : b);
+    final closest = _obstacles.reduce(
+      (a, b) => a.relativeSize > b.relativeSize ? a : b,
+    );
     if (closest.isVeryClose) {
       await _ttsService.speakUrgent('Warning! ${closest.description}');
     } else if (closest.isClose) {
@@ -385,7 +415,9 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
       final description = await _geminiService.describeScene(imageFile.path);
       await _ttsService.speak(description);
 
-      try { await File(imageFile.path).delete(); } catch (_) {}
+      try {
+        await File(imageFile.path).delete();
+      } catch (_) {}
 
       if (wasDetecting && _useStreamMode) {
         await _cameraController!.startImageStream(_processStreamImage);
@@ -431,10 +463,15 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
       }
 
       final XFile imageFile = await _cameraController!.takePicture();
-      final answer = await _geminiService.askQuestion(imageFile.path, _spokenText);
+      final answer = await _geminiService.askQuestion(
+        imageFile.path,
+        _spokenText,
+      );
       await _ttsService.speak(answer);
 
-      try { await File(imageFile.path).delete(); } catch (_) {}
+      try {
+        await File(imageFile.path).delete();
+      } catch (_) {}
 
       if (wasDetecting && _useStreamMode) {
         await _cameraController!.startImageStream(_processStreamImage);
@@ -449,8 +486,9 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
   String get _proximityStatusText {
     if (_obstacles.isEmpty) return 'Clear path ahead';
-    final closest = _obstacles.reduce((a, b) =>
-        a.relativeSize > b.relativeSize ? a : b);
+    final closest = _obstacles.reduce(
+      (a, b) => a.relativeSize > b.relativeSize ? a : b,
+    );
     if (closest.isVeryClose) return 'Warning: ${closest.label} very close';
     if (closest.isClose) return 'Caution: ${closest.label} nearby';
     return '${closest.label} ahead';
@@ -458,8 +496,9 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
   int get _proximityLevel {
     if (_obstacles.isEmpty) return 0;
-    final closest = _obstacles.reduce((a, b) =>
-        a.relativeSize > b.relativeSize ? a : b);
+    final closest = _obstacles.reduce(
+      (a, b) => a.relativeSize > b.relativeSize ? a : b,
+    );
     if (closest.isVeryClose) return 3;
     if (closest.isClose) return 2;
     return 1;
@@ -467,19 +506,27 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
   Color get _proximityColor {
     switch (_proximityLevel) {
-      case 3: return const Color(0xFFE53935);
-      case 2: return const Color(0xFFFFA726);
-      case 1: return const Color(0xFF66BB6A);
-      default: return const Color(0xFF43A047);
+      case 3:
+        return const Color(0xFFE53935);
+      case 2:
+        return const Color(0xFFFFA726);
+      case 1:
+        return const Color(0xFF66BB6A);
+      default:
+        return const Color(0xFF43A047);
     }
   }
 
   IconData get _proximityIcon {
     switch (_proximityLevel) {
-      case 3: return Icons.warning_rounded;
-      case 2: return Icons.error_outline;
-      case 1: return Icons.info_outline;
-      default: return Icons.check_circle_outline;
+      case 3:
+        return Icons.warning_rounded;
+      case 2:
+        return Icons.error_outline;
+      case 1:
+        return Icons.info_outline;
+      default:
+        return Icons.check_circle_outline;
     }
   }
 
@@ -508,7 +555,11 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
               const SizedBox(height: 24),
               const Text(
                 'Camera Permission Required',
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -526,9 +577,14 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     minimumSize: const Size(double.infinity, 72),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                  child: const Text('Open Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Open Settings',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -543,18 +599,25 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
       children: [
         _buildProximityBar(),
         Expanded(
-          child: _isInitialized && _cameraController != null
-              ? _buildGestureCameraZone()
-              : Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      const SizedBox(height: 16),
-                      Text(_statusMessage, style: const TextStyle(color: Colors.white70, fontSize: 18)),
-                    ],
+          child:
+              _isInitialized && _cameraController != null
+                  ? _buildGestureCameraZone()
+                  : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 16),
+                        Text(
+                          _statusMessage,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
         ),
         // Back button
         _buildBottomBar(),
@@ -585,13 +648,21 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              width: 28, height: 28,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: color,
-                boxShadow: _proximityLevel >= 2
-                    ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 12, spreadRadius: 2)]
-                    : [],
+                boxShadow:
+                    _proximityLevel >= 2
+                        ? [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.6),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                        : [],
               ),
               child: Icon(icon, color: Colors.white, size: 18),
             ),
@@ -604,14 +675,21 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                   Text(
                     status,
                     style: TextStyle(
-                      color: Colors.white, fontSize: 18,
-                      fontWeight: _proximityLevel >= 2 ? FontWeight.bold : FontWeight.w500,
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight:
+                          _proximityLevel >= 2
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                     ),
                   ),
                   if (_obstacles.isNotEmpty)
                     Text(
                       '${_obstacles.length} object${_obstacles.length > 1 ? 's' : ''} detected',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 13,
+                      ),
                     ),
                 ],
               ),
@@ -619,14 +697,17 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: (_isDetecting ? Colors.green : Colors.orange).withValues(alpha: 0.2),
+                color: (_isDetecting ? Colors.green : Colors.orange).withValues(
+                  alpha: 0.2,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 8, height: 8,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: _isDetecting ? Colors.green : Colors.orange,
@@ -637,7 +718,8 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                     _isDetecting ? 'ON' : 'OFF',
                     style: TextStyle(
                       color: _isDetecting ? Colors.green : Colors.orange,
-                      fontSize: 12, fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
@@ -675,7 +757,8 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
         }
       },
       child: Semantics(
-        label: 'Camera view. Double tap to describe scene. Long press to ask a question. Swipe down to pause or resume.',
+        label:
+            'Camera view. Double tap to describe scene. Long press to ask a question. Swipe down to pause or resume.',
         child: Stack(
           children: [
             CameraPreviewWidget(
@@ -692,9 +775,19 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                       children: [
                         Icon(Icons.mic, color: Colors.red, size: 64),
                         SizedBox(height: 12),
-                        Text('Listening...', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        Text(
+                          'Listening...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         SizedBox(height: 8),
-                        Text('Release to send question', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                        Text(
+                          'Release to send question',
+                          style: TextStyle(color: Colors.white70, fontSize: 16),
+                        ),
                       ],
                     ),
                   ),
@@ -736,7 +829,14 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                     children: [
                       Icon(Icons.arrow_back, color: Colors.white, size: 24),
                       SizedBox(width: 10),
-                      Text('BACK', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        'BACK',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -746,7 +846,10 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
           const SizedBox(height: 8),
           Text(
             'Double-tap: Describe  •  Hold: Voice  •  Swipe ↓: Pause',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 11),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.35),
+              fontSize: 11,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
