@@ -34,7 +34,7 @@ class NearbyPOI {
 
 /// Location awareness service for real-time environment announcements
 class LocationAwarenessService {
-  static const String _apiKey = 'AIzaSyAYJLNWbHgn-Fv5x-L04Ejob3OUudZ0usA';
+  static const String _apiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
   
   final TTSService _ttsService = TTSService();
   
