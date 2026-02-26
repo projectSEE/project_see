@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEE: Mobile Accessibility App Architecture</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 30px;
+        }
+
+        .container {
+            width: 700px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #202124;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* ========== USER INTERFACE ========== */
+        .ui-section {
+            background: #4285F4;
+            border-radius: 16px;
+            padding: 18px 30px 16px;
+            width: 100%;
+            text-align: center;
+            position: relative;
+        }
+
+        .ui-title {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .ui-icons {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+        }
+
+        .ui-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ui-icon svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .ui-icon-label {
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 500;
+            text-align: center;
+            max-width: 70px;
+        }
+
+        /* ========== ARROWS ========== */
+        .arrow-down {
+            display: flex;
+            justify-content: center;
+            padding: 6px 0;
+        }
+
+        .arrow-down svg {
+            width: 24px;
+            height: 30px;
+        }
+
+        /* ========== FLUTTER APP ========== */
+        .flutter-section {
+            background: #34A853;
+            border-radius: 16px;
+            padding: 18px 20px 18px;
+            width: 100%;
+        }
+
+        .flutter-title {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 14px;
+        }
+
+        .flutter-boxes {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .flutter-box {
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 10px;
+            padding: 10px 14px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #1a472a;
+            min-width: 110px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ========== BOTTOM SECTIONS ARROWS ========== */
+        .arrows-row {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            padding: 4px 60px;
+        }
+
+        .arrows-row svg {
+            width: 24px;
+            height: 28px;
+        }
+
+        /* ========== BOTTOM SECTIONS ========== */
+        .bottom-row {
+            display: flex;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .bottom-box {
+            flex: 1;
+            border-radius: 14px;
+            padding: 16px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .bottom-box-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        .bottom-item {
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 11.5px;
+            font-weight: 500;
+            text-align: center;
+            line-height: 1.35;
+        }
+
+        /* On-Device AI */
+        .ondevice {
+            background: #FEF3E0;
+            border: 2.5px solid #F9AB00;
+        }
+
+        .ondevice .bottom-box-title {
+            color: #E37400;
+        }
+
+        .ondevice .bottom-item {
+            background: #FFF8EB;
+            border: 1.5px solid #FBBC04;
+            color: #5F3700;
+        }
+
+        /* Google Cloud */
+        .gcloud {
+            background: #E6F4EA;
+            border: 2.5px solid #34A853;
+        }
+
+        .gcloud .bottom-box-title {
+            color: #137333;
+        }
+
+        .gcloud .bottom-item {
+            background: #F0FAF2;
+            border: 1.5px solid #34A853;
+            color: #0D4620;
+        }
+
+        /* Cloud AI */
+        .cloudai {
+            background: #F3E8FD;
+            border: 2.5px solid #A142F4;
+        }
+
+        .cloudai .bottom-box-title {
+            color: #7627BB;
+        }
+
+        .cloudai .bottom-item {
+            background: #F9F0FF;
+            border: 1.5px solid #A142F4;
+            color: #4A148C;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="title">SEE: Mobile Accessibility App Architecture</div>
+
+        <!-- User Interface -->
+        <div class="ui-section">
+            <div class="ui-title">User Interface</div>
+            <div class="ui-icons">
+                <div class="ui-icon">
+                    <svg viewBox="0 0 32 32" fill="none">
+                        <rect x="5" y="7" width="22" height="16" rx="3" stroke="white" stroke-width="2.2" fill="none" />
+                        <circle cx="16" cy="15" r="5" stroke="white" stroke-width="2" fill="none" />
+                        <circle cx="16" cy="15" r="2" fill="white" />
+                    </svg>
+                    <span class="ui-icon-label">Camera</span>
+                </div>
+                <div class="ui-icon">
+                    <svg viewBox="0 0 32 32" fill="none">
+                        <rect x="12" y="4" width="8" height="16" rx="4" stroke="white" stroke-width="2.2" fill="none" />
+                        <path d="M10 18 C10 23 16 26 16 26 C16 26 22 23 22 18" stroke="white" stroke-width="2.2"
+                            fill="none" stroke-linecap="round" />
+                        <line x1="16" y1="26" x2="16" y2="29" stroke="white" stroke-width="2.2"
+                            stroke-linecap="round" />
+                    </svg>
+                    <span class="ui-icon-label">Microphone</span>
+                </div>
+                <div class="ui-icon">
+                    <svg viewBox="0 0 32 32" fill="none">
+                        <path d="M8 12 L8 22 L13 22 L20 27 L20 7 L13 12 Z" stroke="white" stroke-width="2.2" fill="none"
+                            stroke-linejoin="round" />
+                        <path d="M23 12 C25 14 25 18 23 20" stroke="white" stroke-width="2" fill="none"
+                            stroke-linecap="round" />
+                        <path d="M26 9 C29 12 29 20 26 23" stroke="white" stroke-width="2" fill="none"
+                            stroke-linecap="round" />
+                    </svg>
+                    <span class="ui-icon-label">Speaker</span>
+                </div>
+                <div class="ui-icon">
+                    <svg viewBox="0 0 32 32" fill="none">
+                        <path d="M10 20 C10 14 16 10 16 10 C16 10 22 14 22 20" stroke="white" stroke-width="2.2"
+                            fill="none" stroke-linecap="round" />
+                        <path d="M7 22 C7 14 16 7 16 7 C16 7 25 14 25 22" stroke="white" stroke-width="2.2" fill="none"
+                            stroke-linecap="round" />
+                        <circle cx="16" cy="23" r="2.5" fill="white" />
+                    </svg>
+                    <span class="ui-icon-label">Vibration / Haptic</span>
+                </div>
+                <div class="ui-icon">
+                    <svg viewBox="0 0 32 32" fill="none">
+                        <rect x="8" y="8" width="16" height="16" rx="2" stroke="white" stroke-width="2.2" fill="none" />
+                        <circle cx="16" cy="16" r="3" fill="white" />
+                        <line x1="16" y1="8" x2="16" y2="13" stroke="white" stroke-width="1.5" />
+                        <line x1="16" y1="19" x2="16" y2="24" stroke="white" stroke-width="1.5" />
+                        <line x1="8" y1="16" x2="13" y2="16" stroke="white" stroke-width="1.5" />
+                        <line x1="19" y1="16" x2="24" y2="16" stroke="white" stroke-width="1.5" />
+                    </svg>
+                    <span class="ui-icon-label">Accelerometer Sensor</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arrow -->
+        <div class="arrow-down">
+            <svg viewBox="0 0 24 30" fill="none">
+                <line x1="12" y1="0" x2="12" y2="22" stroke="#4285F4" stroke-width="3" />
+                <polygon points="6,20 12,28 18,20" fill="#4285F4" />
+            </svg>
+        </div>
+
+        <!-- Flutter App -->
+        <div class="flutter-section">
+            <div class="flutter-title">Flutter App (Dart)</div>
+            <div class="flutter-boxes">
+                <div class="flutter-box">Object<br>Detection</div>
+                <div class="flutter-box">Live Vision<br>Assistant</div>
+                <div class="flutter-box">AI Chatbot</div>
+                <div class="flutter-box">Navigation</div>
+                <div class="flutter-box">Fall<br>Detection</div>
+            </div>
+        </div>
+
+        <!-- Arrows to bottom sections -->
+        <div class="arrows-row">
+            <svg viewBox="0 0 24 28" fill="none">
+                <line x1="12" y1="0" x2="12" y2="20" stroke="#F9AB00" stroke-width="3" />
+                <polygon points="6,18 12,26 18,18" fill="#F9AB00" />
+            </svg>
+            <svg viewBox="0 0 24 28" fill="none">
+                <line x1="12" y1="0" x2="12" y2="20" stroke="#34A853" stroke-width="3" />
+                <polygon points="6,18 12,26 18,18" fill="#34A853" />
+            </svg>
+            <svg viewBox="0 0 24 28" fill="none">
+                <line x1="12" y1="0" x2="12" y2="20" stroke="#A142F4" stroke-width="3" />
+                <polygon points="6,18 12,26 18,18" fill="#A142F4" />
+            </svg>
+        </div>
+
+        <!-- Bottom row -->
+        <div class="bottom-row">
+            <!-- On-Device AI -->
+            <div class="bottom-box ondevice">
+                <div class="bottom-box-title">On-Device AI</div>
+                <div class="bottom-item">Google ML Kit –<br>Object Detection</div>
+                <div class="bottom-item">Depth Anything V2 –<br>Distance Estimation</div>
+                <div class="bottom-item">Accelerometer –<br>Fall Detection<br>(Native Android Service)</div>
+            </div>
+
+            <!-- Google Cloud -->
+            <div class="bottom-box gcloud">
+                <div class="bottom-box-title">Google Cloud Services</div>
+                <div class="bottom-item">Firebase Auth</div>
+                <div class="bottom-item">Cloud Firestore</div>
+                <div class="bottom-item">Google Maps Platform</div>
+            </div>
+
+            <!-- Cloud AI -->
+            <div class="bottom-box cloudai">
+                <div class="bottom-box-title">Cloud AI<br>(Vertex AI)</div>
+                <div class="bottom-item">Gemini 2.5 Flash –<br>Chat and Vision</div>
+                <div class="bottom-item">Gemini Live 2.5 Flash –<br>Real-time Audio/Video Streaming</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
