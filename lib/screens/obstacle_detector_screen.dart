@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/tts_service.dart';
 import 'object_detection_screen.dart';
 import 'live_screen.dart';
-import 'live_test_screen.dart';
+
 import 'navigation_screen.dart';
 
 /// Obstacle Detector Hub — 3 large buttons to navigate to
@@ -116,30 +116,7 @@ class _ObstacleDetectorScreenState extends State<ObstacleDetectorScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 16),
 
-              // ── 2b. LIVE TEST (DEBUG) ──
-              Expanded(
-                child: _buildFeatureButton(
-                  icon: Icons.bug_report_rounded,
-                  label: 'LIVE TEST',
-                  subtitle: 'Debug Live API step by step',
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFE65100), Color(0xFFFF9800)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shadowColor: Colors.orange.withValues(alpha: 0.35),
-                  semanticLabel: 'Live Test. Debug the Gemini Live API step by step.',
-                  onTap: () {
-                    _ttsService.speak('Opening live test');
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LiveTestScreen()),
-                    );
-                  },
-                ),
-              ),
 
               // ── 3. NAVIGATION ──
               Expanded(
