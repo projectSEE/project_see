@@ -54,6 +54,27 @@ class VisualAssistantApp extends StatefulWidget {
 class _VisualAssistantAppState extends State<VisualAssistantApp> {
   final ThemeNotifier _themeNotifier = ThemeNotifier();
 
+  /// Check if user has a completed profile in Firestore
+  static Future<bool> _checkUserProfileExists(User user) async {
+    try {
+      final displayName = user.displayName;
+      if (displayName == null || displayName.isEmpty) return false;
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(displayName)
+          .get();
+      if (!doc.exists) return false;
+      final profile = doc.data()?['profile'] as Map<String, dynamic>?;
+      // Check that essential fields exist (phone + emergency contact)
+      return profile != null &&
+          profile['phone'] != null &&
+          (profile['phone'] as String).isNotEmpty;
+    } catch (e) {
+      debugPrint('⚠️ Error checking user profile: $e');
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -95,9 +116,28 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
             final isEmailProvider = user.providerData
                 .any((p) => p.providerId == 'password');
             if (isEmailProvider && !user.emailVerified) {
-              // Not verified — show LoginScreen (don't sign out!)
-              // The user stays signed in so LoginScreen can reload() them
               return const LoginScreen();
+            }
+            // For Google users, check if profile exists in Firestore
+            final isGoogleProvider = user.providerData
+                .any((p) => p.providerId == 'google.com');
+            if (isGoogleProvider) {
+              return FutureBuilder<bool>(
+                future: _checkUserProfileExists(user),
+                builder: (context, profileSnapshot) {
+                  if (profileSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final hasProfile = profileSnapshot.data ?? false;
+                  if (!hasProfile) {
+                    // New Google user — send to registration completion
+                    return LoginScreen(isNewGoogleUser: true, googleUser: user);
+                  }
+                  return const SafetyMonitor(child: HomeScreen());
+                },
+              );
             }
             return const SafetyMonitor(child: HomeScreen());
           } else {

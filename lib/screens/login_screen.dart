@@ -6,7 +6,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../services/firestore_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool isNewGoogleUser;
+  final User? googleUser;
+
+  const LoginScreen({
+    super.key,
+    this.isNewGoogleUser = false,
+    this.googleUser,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -33,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
-  // Page states: 'login', 'register', 'verification', 'resetPassword'
+  // Page states: 'login', 'register', 'verification', 'resetPassword', 'googleRegister'
   String _currentPage = 'login';
   String _verificationEmail = '';
   bool _resetEmailSent = false;
@@ -42,10 +49,42 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     
-    final user = _auth.currentUser;
-    if (user != null && !user.emailVerified) {
-      _currentPage = 'verification';
-      _verificationEmail = user.email ?? '';
+    // Initialize Google Sign-In once at startup
+    _initGoogleSignIn();
+    
+    // If this is a new Google user, go straight to Google registration
+    if (widget.isNewGoogleUser && widget.googleUser != null) {
+      _currentPage = 'googleRegister';
+      // Pre-fill name and email from Google account
+      _fullNameController.text = widget.googleUser!.displayName ?? '';
+      _emailController.text = widget.googleUser!.email ?? '';
+    } else {
+      final user = _auth.currentUser;
+      if (user != null && !user.emailVerified) {
+        _currentPage = 'verification';
+        _verificationEmail = user.email ?? '';
+      }
+    }
+  }
+
+  // ─── Google Sign-In Initialization ───────────────
+  
+  // Web client ID from google-services.json (client_type: 3)
+  static const String _webClientId =
+      '777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com';
+
+  bool _googleSignInInitialized = false;
+
+  Future<void> _initGoogleSignIn() async {
+    try {
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(
+        serverClientId: _webClientId,
+      );
+      _googleSignInInitialized = true;
+      debugPrint('✅ Google Sign-In initialized successfully');
+    } catch (e) {
+      debugPrint('❌ Google Sign-In initialization failed: $e');
     }
   }
 
@@ -248,10 +287,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ─── Google Sign-In ──────────────────────────────
 
-  // Web client ID from google-services.json (client_type: 3)
-  static const String _webClientId =
-      '777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com';
-
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
@@ -259,34 +294,110 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // Ensure initialization is complete
+      if (!_googleSignInInitialized) {
+        debugPrint('⏳ Google Sign-In not yet initialized, initializing now...');
+        await _initGoogleSignIn();
+      }
+
+      debugPrint('🔐 Starting Google Sign-In authenticate()...');
       final googleSignIn = GoogleSignIn.instance;
-      await googleSignIn.initialize(
-        serverClientId: _webClientId,
-      );
       final GoogleSignInAccount? googleUser =
           await googleSignIn.authenticate();
 
       if (googleUser == null) {
-        // User cancelled the sign-in flow
+        debugPrint('⚠️ Google Sign-In returned null (user cancelled)');
         if (mounted) setState(() => _isLoading = false);
         return;
       }
 
+      debugPrint('✅ Google account selected: ${googleUser.email}');
+      debugPrint('🔑 Getting ID token...');
+
       final idToken = googleUser.authentication.idToken;
+      if (idToken == null) {
+        debugPrint('❌ ID token is null! Check SHA-1 fingerprint in Firebase Console.');
+        if (mounted) {
+          setState(() => _errorMessage =
+              'Google Sign-In failed: Could not get authentication token. '
+              'Please ensure your SHA-1 fingerprint is registered in Firebase Console.');
+        }
+        return;
+      }
+
+      debugPrint('✅ Got ID token, signing in with Firebase...');
       final OAuthCredential credential = GoogleAuthProvider.credential(
         idToken: idToken,
       );
 
-      await _auth.signInWithCredential(credential);
+      final userCred = await _auth.signInWithCredential(credential);
+      debugPrint('✅ Firebase Sign-In successful: ${userCred.user?.email}');
     } on GoogleSignInException catch (e) {
-      // Handle user cancellation gracefully (don't show error)
+      debugPrint('❌ GoogleSignInException: code=${e.code}, message=$e');
       if (e.code == GoogleSignInExceptionCode.canceled) {
-        debugPrint('Google Sign-In cancelled by user');
+        debugPrint('ℹ️ Google Sign-In cancelled by user');
+        // Don't show error for user cancellation
       } else {
-        setState(() => _errorMessage = 'Google Sign-In failed: $e');
+        setState(() => _errorMessage = 'Google Sign-In failed: ${e.code}');
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ FirebaseAuthException: ${e.code} - ${e.message}');
       setState(() => _errorMessage = e.message ?? 'Google Sign-In failed');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Unexpected error during Google Sign-In: $e');
+      debugPrint('Stack trace: $stackTrace');
+      setState(() => _errorMessage = 'Google Sign-In failed: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ─── Google Registration (Complete Profile) ──────
+
+  Future<void> _submitGoogleRegistration() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        setState(() => _errorMessage = 'No user signed in. Please try again.');
+        return;
+      }
+
+      final fullName = _fullNameController.text.trim();
+
+      // Update display name if different
+      if (user.displayName != fullName) {
+        await user.updateDisplayName(fullName);
+      }
+
+      // Save profile to Firestore
+      await _firestoreService.updateUserProfile(fullName, {
+        'fullName': fullName,
+        'email': user.email ?? _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'emergencyContactName': _emergencyNameController.text.trim(),
+        'emergencyContactPhone': _emergencyPhoneController.text.trim(),
+        'uid': user.uid,
+        'provider': 'google',
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+
+      debugPrint('✅ Google user profile saved successfully');
+
+      // Force auth state refresh so main.dart re-checks profile
+      if (mounted) {
+        await user.reload();
+        // Trigger userChanges() stream by reloading
+        await user.getIdToken(true);
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = e.message ?? 'Registration failed');
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
@@ -352,6 +463,9 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'register':
         title = 'Create Account';
         break;
+      case 'googleRegister':
+        title = 'Complete Your Profile';
+        break;
       case 'verification':
         title = 'Verify Your Email';
         break;
@@ -393,6 +507,8 @@ class _LoginScreenState extends State<LoginScreen> {
     switch (_currentPage) {
       case 'register':
         return _buildRegistrationForm();
+      case 'googleRegister':
+        return _buildGoogleRegistrationForm();
       case 'verification':
         return _buildVerificationCard();
       case 'resetPassword':
@@ -877,6 +993,162 @@ class _LoginScreenState extends State<LoginScreen> {
             child: const Text('Send Reset Link', style: TextStyle(fontSize: 18)),
           ),
       ],
+    );
+  }
+
+  // ─── Google Registration Form ───────────────────
+
+  Widget _buildGoogleRegistrationForm() {
+    final user = widget.googleUser ?? _auth.currentUser;
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          const Icon(Icons.person_add_outlined, size: 60, color: Colors.blueAccent),
+          const SizedBox(height: 16),
+          const Text(
+            'Complete Your Profile',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Welcome, ${user?.displayName ?? 'there'}! Please fill in a few more details to get started.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+
+          if (_errorMessage != null) _buildErrorBanner(),
+
+          // ── Google account info (read-only) ──
+          _buildSectionHeader('Google Account', Icons.account_circle),
+          const SizedBox(height: 12),
+
+          // Full Name (pre-filled, editable)
+          TextFormField(
+            controller: _fullNameController,
+            validator: _validateFullName,
+            decoration: const InputDecoration(
+              labelText: 'Full Name *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.badge_outlined),
+            ),
+            textCapitalization: TextCapitalization.words,
+            autocorrect: false,
+          ),
+          const SizedBox(height: 16),
+
+          // Email (read-only from Google)
+          TextFormField(
+            controller: _emailController,
+            readOnly: true,
+            decoration: InputDecoration(
+              labelText: 'Email Address',
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.email_outlined),
+              filled: true,
+              fillColor: Colors.grey.shade100,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── Contact Info Section ──
+          _buildSectionHeader('Contact Information', Icons.phone),
+          const SizedBox(height: 12),
+
+          // Phone
+          TextFormField(
+            controller: _phoneController,
+            validator: _validatePhone,
+            decoration: const InputDecoration(
+              labelText: 'Phone Number *',
+              hintText: 'e.g. +60123456789',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.phone_outlined),
+            ),
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d\+\-\s\(\)]')),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // ── Emergency Contact Section ──
+          _buildSectionHeader('Emergency Contact', Icons.emergency_outlined),
+          const SizedBox(height: 4),
+          Text(
+            'This person will be contacted in case of emergencies detected by the app.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 12),
+
+          // Emergency Contact Name
+          TextFormField(
+            controller: _emergencyNameController,
+            validator: _validateEmergencyName,
+            decoration: const InputDecoration(
+              labelText: 'Emergency Contact Name *',
+              hintText: 'e.g. Jane Doe',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.contact_emergency_outlined),
+            ),
+            textCapitalization: TextCapitalization.words,
+            autocorrect: false,
+          ),
+          const SizedBox(height: 16),
+
+          // Emergency Contact Phone
+          TextFormField(
+            controller: _emergencyPhoneController,
+            validator: _validateEmergencyPhone,
+            decoration: const InputDecoration(
+              labelText: 'Emergency Contact Phone *',
+              hintText: 'e.g. +60198765432',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.phone_callback_outlined),
+            ),
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d\+\-\s\(\)]')),
+            ],
+          ),
+          const SizedBox(height: 32),
+
+          // ── Submit Button ──
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else
+            ElevatedButton(
+              onPressed: _submitGoogleRegistration,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Complete Registration', style: TextStyle(fontSize: 18)),
+            ),
+
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: () async {
+              await _auth.signOut();
+              if (mounted) {
+                setState(() {
+                  _currentPage = 'login';
+                  _errorMessage = null;
+                });
+              }
+            },
+            child: const Text(
+              'Sign out and go back',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
