@@ -38,7 +38,13 @@ jobs:
       # - name: Run Tests
       #   run: flutter test
 
-      # 6. Build the APK
+      # 6. Decode debug keystore for consistent signing
+      - name: Decode Keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 --decode > ~/.android/debug.keystore
+
+      # 7. Build the APK
       - name: Build Release APK
         run: flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
 
