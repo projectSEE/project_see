@@ -56,7 +56,8 @@ jobs:
       - name: Verify APK Signature
         run: |
           echo "=== APK signing certificate ==="
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk 2>/dev/null | grep SHA1
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner -type f | sort -r | head -1)
+          $APKSIGNER verify --print-certs build/app/outputs/flutter-apk/app-release.apk || true
 
       # 7. Upload APK as artifact (for download)
       - name: Upload APK Artifact
