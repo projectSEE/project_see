@@ -13,7 +13,24 @@
   <img src="https://img.shields.io/badge/Platform-Android-3DDC84?logo=android" alt="Android">
 </p>
 
+# 🌐 Project Hub
+
+### 1. Project S.E.E. — KitaHack 2026
+
+* ▶️ **[View the Live Demo](https://youtu.be/5rptn0NpdhI)**
+* 📽️ **[View the Pitch Deck (Canva)](https://www.canva.com/design/DAHCMHdSt18/uquqnk9WNl0ns18z7EnL4Q/edit?utm_content=DAHCMHdSt18&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)**
+* 📄 **[Read the Full Technical Report](https://drive.google.com/file/d/1cTIu7ANkeM7fOKjEOiLgMboD2CiTFra3/view?usp=drive_link)**
+* 📊 **[View the Live Impact Dashboard (Looker Studio)](https://lookerstudio.google.com/reporting/e055b2bb-3efc-4761-9813-8795a3b28159)**
+* 🗺️ **[Explore the Technical Roadmap](https://drive.google.com/file/d/10490V8lv0zvaDaJPZsIqbIzrwhghuKBI/view?usp=sharing)**
+* </> **[Explore the Codebase on GitHub](https://www.google.com/search?q=https://github.com/kevin2190p/SEE-Project)**
+
 ---
+
+### 2. Core Implementation Details
+
+* ⚙️ **[System Flow & Architecture](https://drive.google.com/file/d/1ysF8-CKwYKD24pHtgkB5aJB0yfzqPbMm/view?usp=drive_link)**
+* 💡 **[Solution Overview](https://drive.google.com/open?id=1uc5ivouNl7wbFZQgpQiuPXsvJLWOzfKU)**
+* 🗄️ **[Live Telemetry Feed (Raw Data)](https://docs.google.com/spreadsheets/d/1Yg6T8fkQgGcDeqxveZ3kyruuIDqWo67havrZHNhl_k0/edit?usp=sharing)**
 
 ## 📑 Table of Contents
 
