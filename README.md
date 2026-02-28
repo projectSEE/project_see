@@ -22,7 +22,6 @@
 * 📄 **[Read the Full Technical Report](https://drive.google.com/file/d/1cTIu7ANkeM7fOKjEOiLgMboD2CiTFra3/view?usp=drive_link)**
 * 📊 **[View the Live Impact Dashboard (Looker Studio)](https://lookerstudio.google.com/reporting/e055b2bb-3efc-4761-9813-8795a3b28159)**
 * 🗺️ **[Explore the Technical Roadmap](https://drive.google.com/file/d/10490V8lv0zvaDaJPZsIqbIzrwhghuKBI/view?usp=sharing)**
-* </> **[Explore the Codebase on GitHub](https://www.google.com/search?q=https://github.com/kevin2190p/SEE-Project)**
 
 ---
 
