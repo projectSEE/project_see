@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../theme/theme.dart';
 
 /// Interactive chat message bubble with accessibility features.
-/// 
+///
 /// Supports:
 /// - Tap to read aloud (AI messages only)
 /// - Long-press to copy text
@@ -65,49 +65,58 @@ class InteractiveMessageBubble extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    return GestureDetector(
-      onTap: onImageTap,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          child: imageBytes != null 
-              ? Image.memory(
-                  imageBytes!,
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.cover,
-                )
-              : Image.network(
-                  imageUrl!,
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
+    return Semantics(
+      label: 'Image attachment, tap to open fullscreen',
+      button: true,
+      child: GestureDetector(
+        onTap: onImageTap,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child:
+                imageBytes != null
+                    ? Image.memory(
+                      imageBytes!,
                       width: 200,
                       height: 200,
-                      color: Colors.grey[300],
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image, color: Colors.grey),
-                    );
-                  },
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
+                      fit: BoxFit.cover,
+                    )
+                    : Image.network(
+                      imageUrl!,
                       width: 200,
                       height: 200,
-                      color: Colors.grey[200],
-                      alignment: Alignment.center,
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded / 
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                ),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 200,
+                          height: 200,
+                          color: Colors.grey[300],
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          width: 200,
+                          height: 200,
+                          color: Colors.grey[200],
+                          alignment: Alignment.center,
+                          child: CircularProgressIndicator(
+                            value:
+                                loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                          ),
+                        );
+                      },
+                    ),
+          ),
         ),
       ),
     );
@@ -144,7 +153,11 @@ class InteractiveMessageBubble extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.volume_up_rounded, size: 32, color: AppColors.primary),
+                  Icon(
+                    Icons.volume_up_rounded,
+                    size: 32,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
                     'Read Aloud',
@@ -181,22 +194,27 @@ class InteractiveMessageBubble extends StatelessWidget {
 
   Future<bool> _confirmDelete(BuildContext context) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Message?'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
-    ) ?? false;
+          context: context,
+          builder:
+              (ctx) => AlertDialog(
+                title: const Text('Delete Message?'),
+                content: const Text('This action cannot be undone.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(
+                      'Delete',
+                      style: TextStyle(color: AppColors.error),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
   }
 
   void _copyToClipboard(BuildContext context) {
@@ -218,10 +236,14 @@ class InteractiveMessageBubble extends StatelessWidget {
 
   TextStyle _getTextStyle() {
     if (_isUser) {
-      return AppTextStyles.chatMessage.copyWith(color: AppColors.userBubbleText);
+      return AppTextStyles.chatMessage.copyWith(
+        color: AppColors.userBubbleText,
+      );
     }
     if (_isSystem) {
-      return AppTextStyles.systemMessage.copyWith(color: AppColors.systemBubbleText);
+      return AppTextStyles.systemMessage.copyWith(
+        color: AppColors.systemBubbleText,
+      );
     }
     return AppTextStyles.chatMessage.copyWith(color: AppColors.aiBubbleText);
   }
@@ -258,6 +280,7 @@ class ImageViewerDialog extends StatelessWidget {
             right: 16,
             child: IconButton(
               icon: const Icon(Icons.close, color: Colors.white, size: 32),
+              tooltip: 'Close fullscreen image',
               onPressed: () => Navigator.pop(context),
             ),
           ),

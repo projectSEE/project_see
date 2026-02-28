@@ -1,50 +1,44 @@
 import 'package:flutter/material.dart';
 
-/// Centralized app colors based on SDG-inspired palette.
-/// Use these constants throughout the app for consistency.
+/// Centralized app colors — strict Black & White only.
 class AppColors {
-  AppColors._(); // Private constructor to prevent instantiation
+  AppColors._();
 
-  // Primary Colors
-  static const Color primary = Color(0xFF4285F4);       // Base Theme - Blue
-  static const Color primaryLight = Color(0xFF80B4FF);
-  static const Color primaryDark = Color(0xFF0D47A1);
+  // Primary
+  static const Color primary = Colors.black;
+  static const Color primaryLight = Colors.white;
+  static const Color primaryDark = Colors.black;
 
-  // SDG Accent Colors
-  static const Color sdg9Orange = Color(0xFFF4845F);    // SDG 9 - Orange/Coral
-  static const Color sdg10Pink = Color(0xFFE84A8A);     // SDG 10 - Pink/Magenta
-  static const Color sdg11Yellow = Color(0xFFFCC419);   // SDG 11 - Yellow
+  // Text
+  static const Color textPrimary = Colors.black;
+  static const Color textSecondary = Color(0xFF333333);
+  static const Color textLight = Colors.white;
+  static const Color textMuted = Color(0xFF999999);
 
-  // Neutral Colors
-  static const Color textPrimary = Color(0xFF3D4550);   // Charcoal
-  static const Color textSecondary = Color(0xFF6C757D);
-  static const Color textLight = Color(0xFFFFFFFF);
-  static const Color textMuted = Color(0xFFADB5BD);
+  // Background
+  static const Color background = Colors.white;
+  static const Color backgroundDark = Colors.black;
+  static const Color surface = Color(0xFFF5F5F5);
+  static const Color surfaceDark = Color(0xFF1A1A1A);
 
-  // Background Colors
-  static const Color background = Color(0xFFFFFFFF);    // 2nd Base - White
-  static const Color backgroundDark = Color(0xFF1A1A1A);
-  static const Color surface = Color(0xFFF8F9FA);
-  static const Color surfaceDark = Color(0xFF2D2D2D);
+  // Semantic — still B/W
+  static const Color success = Colors.black;
+  static const Color warning = Colors.black;
+  static const Color error = Colors.black;
+  static const Color info = Colors.black;
 
-  // Semantic Colors
-  static const Color success = Color(0xFF28A745);
-  static const Color warning = sdg11Yellow;
-  static const Color error = Color(0xFFDC3545);
-  static const Color info = primary;
+  // Chat Bubble
+  static const Color userBubble = Colors.black;
+  static const Color userBubbleText = Colors.white;
+  static const Color aiBubble = Colors.white;
+  static const Color aiBubbleText = Colors.black;
+  static const Color systemBubble = Color(0xFFF0F0F0);
+  static const Color systemBubbleText = Colors.black;
 
-  // Chat Bubble Colors
-  static const Color userBubble = primary;
-  static const Color userBubbleText = textLight;
-  static const Color aiBubble = surface;
-  static const Color aiBubbleText = textPrimary;
-  static const Color systemBubble = Color(0xFFE3F2FD);
-  static const Color systemBubbleText = textPrimary;
-
-  // Live Mode Colors
-  static const Color recording = error;
-  static const Color aiSpeaking = sdg9Orange;
-  static const Color liveActive = success;
+  // Live Mode
+  static const Color recording = Colors.black;
+  static const Color aiSpeaking = Colors.black;
+  static const Color liveActive = Colors.black;
 }
 
 /// App-wide text styles for consistency.
@@ -53,7 +47,6 @@ class AppTextStyles {
 
   static const String fontFamily = 'Roboto';
 
-  // Headers
   static const TextStyle h1 = TextStyle(
     fontSize: 28,
     fontWeight: FontWeight.bold,
@@ -72,7 +65,6 @@ class AppTextStyles {
     color: AppColors.textPrimary,
   );
 
-  // Body
   static const TextStyle bodyLarge = TextStyle(
     fontSize: 18,
     fontWeight: FontWeight.normal,
@@ -94,7 +86,6 @@ class AppTextStyles {
     height: 1.4,
   );
 
-  // Chat specific
   static const TextStyle chatMessage = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.normal,
@@ -120,7 +111,6 @@ class AppSpacing {
   static const double xl = 32.0;
   static const double xxl = 48.0;
 
-  // Border radius
   static const double radiusSm = 8.0;
   static const double radiusMd = 12.0;
   static const double radiusLg = 16.0;
@@ -134,12 +124,19 @@ class AppDecorations {
   static BoxDecoration get userBubble => BoxDecoration(
     color: AppColors.userBubble,
     borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+    border: Border.all(
+      color: const Color(0xFF888888).withValues(alpha: 0.5),
+      width: 1.5,
+    ),
   );
 
   static BoxDecoration get aiBubble => BoxDecoration(
     color: AppColors.aiBubble,
     borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1),
+    border: Border.all(
+      color: const Color(0xFF888888).withValues(alpha: 0.5),
+      width: 1.5,
+    ),
   );
 
   static BoxDecoration get systemBubble => BoxDecoration(
@@ -149,7 +146,7 @@ class AppDecorations {
 
   static BoxDecoration get inputContainer => BoxDecoration(
     color: AppColors.surface,
-    border: Border(top: BorderSide(color: AppColors.primary, width: 2)),
+    border: Border(top: BorderSide(color: Colors.black, width: 2)),
   );
 
   static BoxDecoration get card => BoxDecoration(
