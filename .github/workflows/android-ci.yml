@@ -49,6 +49,8 @@ jobs:
       # 7. Build the APK
       - name: Build Release APK
         run: flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+        env:
+          DEBUG_KEYSTORE_PATH: /home/runner/.android/debug.keystore
 
       # 7.5 Verify APK signature
       - name: Verify APK Signature
