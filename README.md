@@ -287,9 +287,9 @@ see/
 │           └── AndroidManifest.xml  # Permissions & API keys
 ├── assets/
 │   ├── audio/                # Sound assets (siren for fall detection)
-│   └── google_fonts/         # Custom fonts
+│   ├── google_fonts/         # Custom fonts
+│   └── models/               # ML model files
 ├── lib/                      # Dart source code (see Architecture above)
-├── .env                      # Environment variables (git-ignored)
 ├── .fvmrc                    # FVM Flutter version config
 ├── pubspec.yaml              # Dependencies
 ├── firebase.json             # Firebase project config
