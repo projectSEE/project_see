@@ -100,7 +100,7 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
                   fontSize: 12,
                 ),
               ),
-              backgroundColor: Colors.redAccent,
+              backgroundColor: Colors.black,
               visualDensity: VisualDensity.compact,
             ),
           ),
@@ -113,76 +113,85 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
                 left: position - 25, // Center the 50px wide bar
                 top: 0,
                 bottom: 0,
-                child: GestureDetector(
-                  onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      _splitPosition += details.delta.dx / constraints.maxWidth;
-                      _splitPosition = _splitPosition.clamp(0.0, 1.0);
-                    });
-                  },
-                  child: Container(
-                    width: 50, // Wide touch area
-                    color: Colors.transparent,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Top Line
-                        Expanded(
-                          child: Container(
-                            width: 2,
-                            color:
-                                hideLine ? Colors.transparent : Colors.white70,
+                child: Semantics(
+                  label: 'Adjust vision split slider',
+                  slider: true,
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: (details) {
+                      setState(() {
+                        _splitPosition +=
+                            details.delta.dx / constraints.maxWidth;
+                        _splitPosition = _splitPosition.clamp(0.0, 1.0);
+                      });
+                    },
+                    child: Container(
+                      width: 50, // Wide touch area
+                      color: Colors.transparent,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Top Line
+                          Expanded(
+                            child: Container(
+                              width: 2,
+                              color:
+                                  hideLine
+                                      ? Colors.transparent
+                                      : Colors.white70,
+                            ),
                           ),
-                        ),
 
-                        // THE NEW HANDLE: Horizontal Bar with Arrows
-                        Container(
-                          height: 40,
-                          width:
-                              80, // Wider than the touch column to look like a bar
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              const BoxShadow(
-                                blurRadius: 8,
-                                color: Colors.black45,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.chevron_left,
-                                size: 20,
-                                color: Colors.black,
-                              ),
-                              Text(
-                                strings.get('slide'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 10,
+                          // THE NEW HANDLE: Horizontal Bar with Arrows
+                          Container(
+                            height: 40,
+                            width:
+                                80, // Wider than the touch column to look like a bar
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                const BoxShadow(
+                                  blurRadius: 8,
+                                  color: Colors.black45,
                                 ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right,
-                                size: 20,
-                                color: Colors.black,
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.chevron_left,
+                                  size: 20,
+                                  color: Colors.black,
+                                ),
+                                Text(
+                                  strings.get('slide'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  size: 20,
+                                  color: Colors.black,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        // Bottom Line
-                        Expanded(
-                          child: Container(
-                            width: 2,
-                            color:
-                                hideLine ? Colors.transparent : Colors.white70,
+                          // Bottom Line
+                          Expanded(
+                            child: Container(
+                              width: 2,
+                              color:
+                                  hideLine
+                                      ? Colors.transparent
+                                      : Colors.white70,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -205,17 +214,17 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
                 children: [
                   _buildModeBtn(
                     strings.get('glaucoma'),
-                    Colors.green,
+                    Colors.black,
                     "Glaucoma",
                   ),
                   _buildModeBtn(
                     strings.get('cataracts'),
-                    Colors.blue,
+                    Colors.black,
                     "Cataracts",
                   ),
                   _buildModeBtn(
                     strings.get('retinopathy'),
-                    Colors.orange,
+                    Colors.black,
                     "Retinopathy",
                   ),
                 ],

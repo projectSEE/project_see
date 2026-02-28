@@ -507,13 +507,13 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
   Color get _proximityColor {
     switch (_proximityLevel) {
       case 3:
-        return const Color(0xFFE53935);
+        return Colors.red;
       case 2:
-        return const Color(0xFFFFA726);
+        return Colors.orange;
       case 1:
-        return const Color(0xFF66BB6A);
+        return Colors.green;
       default:
-        return const Color(0xFF43A047);
+        return Colors.white;
     }
   }
 
@@ -575,7 +575,7 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                 child: ElevatedButton(
                   onPressed: () => openAppSettings(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: Colors.black,
                     minimumSize: const Size(double.infinity, 72),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -697,7 +697,7 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: (_isDetecting ? Colors.green : Colors.orange).withValues(
+                color: (_isDetecting ? Colors.green : Colors.red).withValues(
                   alpha: 0.2,
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -710,14 +710,14 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _isDetecting ? Colors.green : Colors.orange,
+                      color: _isDetecting ? Colors.green : Colors.red,
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     _isDetecting ? 'ON' : 'OFF',
                     style: TextStyle(
-                      color: _isDetecting ? Colors.green : Colors.orange,
+                      color: _isDetecting ? Colors.green : Colors.red,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -734,66 +734,74 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
   // ─── GESTURE CAMERA ZONE ────────────────────────────────
 
   Widget _buildGestureCameraZone() {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onDoubleTap: () {
-        _ttsService.speak('Describing scene...');
-        _describeScene();
-      },
-      onLongPress: () {
-        if (_isListening) {
-          _stopListeningAndAsk();
-        } else {
-          _ttsService.speak('Listening...');
-          _startListening();
-        }
-      },
-      onLongPressUp: () {
-        if (_isListening) _stopListeningAndAsk();
-      },
-      onVerticalDragEnd: (details) {
-        if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
-          _toggleDetection();
-        }
-      },
-      child: Semantics(
-        label:
-            'Camera view. Double tap to describe scene. Long press to ask a question. Swipe down to pause or resume.',
-        child: Stack(
-          children: [
-            CameraPreviewWidget(
-              controller: _cameraController!,
-              obstacles: _obstacles,
-            ),
-            if (_isListening)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.mic, color: Colors.red, size: 64),
-                        SizedBox(height: 12),
-                        Text(
-                          'Listening...',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+    return Semantics(
+      label:
+          'Camera view. Double tap to describe scene, long press to voice chat.',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onDoubleTap: () {
+          _ttsService.speak('Describing scene...');
+          _describeScene();
+        },
+        onLongPress: () {
+          if (_isListening) {
+            _stopListeningAndAsk();
+          } else {
+            _ttsService.speak('Listening...');
+            _startListening();
+          }
+        },
+        onLongPressUp: () {
+          if (_isListening) _stopListeningAndAsk();
+        },
+        onVerticalDragEnd: (details) {
+          if (details.primaryVelocity != null &&
+              details.primaryVelocity! > 300) {
+            _toggleDetection();
+          }
+        },
+        child: Semantics(
+          label:
+              'Camera view. Double tap to describe scene. Long press to ask a question. Swipe down to pause or resume.',
+          child: Stack(
+            children: [
+              CameraPreviewWidget(
+                controller: _cameraController!,
+                obstacles: _obstacles,
+              ),
+              if (_isListening)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.mic, color: Colors.white, size: 64),
+                          SizedBox(height: 12),
+                          Text(
+                            'Listening...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Release to send question',
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
-                        ),
-                      ],
+                          SizedBox(height: 8),
+                          Text(
+                            'Release to send question',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

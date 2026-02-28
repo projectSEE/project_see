@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'screens/chat_screen.dart';
-import 'screens/obstacle_detector_screen.dart';
+import 'screens/object_detection_screen.dart';
+import 'screens/live_screen.dart';
+import 'screens/live_test_screen.dart';
+import 'screens/navigation_screen.dart';
 import 'theme/theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -163,6 +166,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final LanguageNotifier _langNotifier = LanguageNotifier();
   final TTSService _ttsService = TTSService();
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -253,23 +257,84 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // —— OBSTACLE DETECTION ——
+                      // —— OBJECT DETECTION ——
                       _buildFeatureButton(
-                        icon: Icons.camera_alt,
-                        label: strings.get('obstacleDetection'),
-                        subtitle:
-                            'Camera-based navigation', // Localize if possible or leave out
-                        semanticLabel:
-                            '${strings.get('obstacleDetection')} button',
+                        icon: Icons.remove_red_eye_rounded,
+                        label: strings.get('objectDetection'),
+                        subtitle: strings.get('objectDetectionSubtitle'),
+                        semanticLabel: strings.get('objectDetectionSemantic'),
                         onTap: () async {
                           await _ttsService.speak(
-                            strings.get('openingObstacleDetection'),
+                            strings.get('openingObjectDetection'),
                           );
                           if (!context.mounted) return;
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const ObstacleDetectorScreen(),
+                              builder: (_) => const ObjectDetectionScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— LIVE ASSISTANT ——
+                      _buildFeatureButton(
+                        icon: Icons.videocam_rounded,
+                        label: strings.get('liveAssistant'),
+                        subtitle: strings.get('liveAssistantSubtitle'),
+                        semanticLabel: strings.get('liveAssistantSemantic'),
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingLiveAssistant'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LiveScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— LIVE TEST (DEBUG) ——
+                      _buildFeatureButton(
+                        icon: Icons.bug_report_rounded,
+                        label: strings.get('liveTest'),
+                        subtitle: strings.get('liveTestSubtitle'),
+                        semanticLabel: strings.get('liveTestSemantic'),
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingLiveTest'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LiveTestScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // —— NAVIGATION ——
+                      _buildFeatureButton(
+                        icon: Icons.navigation_rounded,
+                        label: strings.get('navigate'),
+                        subtitle: strings.get('navigateSubtitle'),
+                        semanticLabel: strings.get('navigateSemantic'),
+                        onTap: () async {
+                          await _ttsService.speak(
+                            strings.get('openingNavigation'),
+                          );
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NavigationScreen(),
                             ),
                           );
                         },
@@ -361,7 +426,15 @@ class _HomeScreenState extends State<HomeScreen> {
       button: true,
       label: semanticLabel,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: () {
+          if (_isNavigating) return;
+          _isNavigating = true;
+          onTap();
+          // Reset after a delay to allow the page transition to complete
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            if (mounted) _isNavigating = false;
+          });
+        },
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -576,7 +649,7 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
   Widget build(BuildContext context) {
     final strings = AppLocalizations(LanguageNotifier().languageCode);
     return Scaffold(
-      backgroundColor: Colors.red.shade900,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
@@ -614,7 +687,7 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
                   height: 330,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.greenAccent.shade400,
+                      backgroundColor: Colors.white,
                       shape: const CircleBorder(),
                       elevation: 10,
                     ),
@@ -628,13 +701,13 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
                         const Icon(
                           Icons.check_circle_outline,
                           size: 60,
-                          color: Colors.black87,
+                          color: Colors.black,
                         ),
                         const SizedBox(height: 10),
                         Text(
                           strings.get('imOkay'),
                           style: const TextStyle(
-                            color: Colors.black87,
+                            color: Colors.black,
                             fontSize: 40,
                             fontWeight: FontWeight.bold,
                           ),
@@ -642,7 +715,7 @@ class _EmergencyCountdownDialogState extends State<EmergencyCountdownDialog> {
                         Text(
                           strings.get('cancelAlarm'),
                           style: const TextStyle(
-                            color: Colors.black54,
+                            color: Colors.black,
                             fontSize: 16,
                           ),
                         ),

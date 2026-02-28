@@ -63,7 +63,7 @@ class SightFactsScreen extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blueAccent,
+                        color: Colors.black,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -114,7 +114,7 @@ class SightFactsScreen extends StatelessWidget {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo.shade800,
+                            backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             elevation: 2,

@@ -16,7 +16,7 @@ class AwarenessMenuScreen extends StatelessWidget {
           strings.get('awarenessMenu'),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.teal,
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
       backgroundColor: Colors.black,
@@ -26,7 +26,7 @@ class AwarenessMenuScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.visibility, size: 80, color: Colors.tealAccent),
+            const Icon(Icons.visibility, size: 80, color: Colors.white),
             const SizedBox(height: 32),
 
             // Button 1: Goes to the Vision Simulator
@@ -49,8 +49,8 @@ class AwarenessMenuScreen extends StatelessWidget {
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 20),
-                  backgroundColor: Colors.purple.shade100,
-                  foregroundColor: Colors.purple.shade900,
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -80,8 +80,8 @@ class AwarenessMenuScreen extends StatelessWidget {
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 20),
-                  backgroundColor: Colors.blue.shade100,
-                  foregroundColor: Colors.blue.shade900,
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

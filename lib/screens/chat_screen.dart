@@ -517,40 +517,41 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         actions: [
-          Builder(
-            builder:
-                (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  tooltip: strings.get('settingsAndHistory'),
-                ),
-          ),
           // Text-to-Speech Toggle
-          IconButton(
-            icon: Icon(
-              _ttsEnabled ? Icons.volume_up : Icons.volume_off,
-              color: _ttsEnabled ? AppColors.liveActive : AppColors.textMuted,
-            ),
-            onPressed: () async {
-              setState(() {
-                _ttsEnabled = !_ttsEnabled;
-              });
-              // Stop speaking if TTS was just disabled
-              if (!_ttsEnabled) {
-                await _ttsService.stop();
-              }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
+          Semantics(
+            label: strings.get('toggleTts'),
+            button: true,
+            child: IconButton(
+              icon: Icon(
+                _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+                color:
                     _ttsEnabled
-                        ? strings.get('ttsEnabled')
-                        : strings.get('ttsStopped'),
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+              tooltip: strings.get('toggleTts'),
+              onPressed: () async {
+                setState(() {
+                  _ttsEnabled = !_ttsEnabled;
+                });
+                // Stop speaking if TTS was just disabled
+                if (!_ttsEnabled) {
+                  await _ttsService.stop();
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _ttsEnabled
+                          ? strings.get('ttsEnabled')
+                          : strings.get('ttsStopped'),
+                    ),
+                    duration: const Duration(seconds: 1),
                   ),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-            tooltip: strings.get('toggleTts'),
+                );
+              },
+            ),
           ),
           // Live Mode Toggle
           Row(
@@ -560,16 +561,15 @@ class _ChatScreenState extends State<ChatScreen> {
                     ? strings.get('liveMode')
                     : strings.get('normalMode'),
                 style: TextStyle(
-                  color:
-                      _isLiveMode ? AppColors.liveActive : AppColors.textMuted,
+                  color: _isLiveMode ? Colors.white : Colors.white70,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Switch(
                 value: _isLiveMode,
                 onChanged: _isLoading ? null : _toggleLiveMode,
-                activeColor: AppColors.liveActive,
-                inactiveThumbColor: AppColors.textMuted,
+                activeColor: Colors.white,
+                inactiveThumbColor: Colors.white70,
               ),
             ],
           ),
@@ -605,12 +605,12 @@ class _ChatScreenState extends State<ChatScreen> {
               // Header
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                color: AppColors.primary,
+                color: Theme.of(context).colorScheme.surface,
                 child: Row(
                   children: [
                     Icon(
                       Icons.settings,
-                      color: AppColors.sdg11Yellow,
+                      color: Theme.of(context).colorScheme.onSurface,
                       size: 28,
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -619,7 +619,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textLight,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ],
@@ -638,7 +638,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   _ttsEnabled
                       ? strings.get('ttsEnabledDesc')
                       : strings.get('ttsSilentMode'),
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                 ),
                 value: _ttsEnabled,
                 onChanged: (value) {
@@ -646,11 +650,15 @@ class _ChatScreenState extends State<ChatScreen> {
                     _ttsEnabled = value;
                   });
                 },
-                activeColor: AppColors.liveActive,
+                activeColor: Theme.of(context).colorScheme.onSurface,
                 secondary: Icon(
                   _ttsEnabled ? Icons.volume_up : Icons.volume_off,
                   color:
-                      _ttsEnabled ? AppColors.liveActive : AppColors.textMuted,
+                      _ttsEnabled
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
 
@@ -666,22 +674,28 @@ class _ChatScreenState extends State<ChatScreen> {
                   ThemeNotifier().isDarkMode
                       ? strings.get('darkThemeActive')
                       : strings.get('lightThemeActive'),
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                 ),
                 value: ThemeNotifier().isDarkMode,
                 onChanged: (value) {
                   ThemeNotifier().setDarkMode(value);
                   setState(() {}); // Refresh UI
                 },
-                activeColor: AppColors.primary,
+                activeColor: Theme.of(context).colorScheme.onSurface,
                 secondary: Icon(
                   ThemeNotifier().isDarkMode
                       ? Icons.dark_mode
                       : Icons.light_mode,
                   color:
                       ThemeNotifier().isDarkMode
-                          ? AppColors.sdg11Yellow
-                          : AppColors.textMuted,
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
 
@@ -689,7 +703,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
               // Share Conversation Button
               ListTile(
-                leading: Icon(Icons.share, color: AppColors.primary),
+                leading: Icon(
+                  Icons.share,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 title: Text(
                   strings.get('shareConversation'),
                   style: TextStyle(
@@ -698,7 +715,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 subtitle: Text(
                   strings.get('exportAsText'),
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -719,11 +740,16 @@ class _ChatScreenState extends State<ChatScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.sdg11Yellow,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.refresh, color: AppColors.textSecondary),
+                      icon: Icon(
+                        Icons.refresh,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
                       onPressed: _loadChatHistory,
                       tooltip: strings.get('refresh'),
                     ),
@@ -748,7 +774,11 @@ class _ChatScreenState extends State<ChatScreen> {
                             _searchQuery.isEmpty
                                 ? strings.get('noConversations')
                                 : strings.get('noMatchingConversations'),
-                            style: TextStyle(color: AppColors.textMuted),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
                           ),
                         )
                         : ListView.builder(
@@ -789,19 +819,33 @@ class _ChatScreenState extends State<ChatScreen> {
                                     : firstMessage;
 
                             return Card(
-                              color: AppColors.surface,
+                              color: Theme.of(context).colorScheme.surface,
                               margin: const EdgeInsets.symmetric(
                                 horizontal: AppSpacing.md,
                                 vertical: AppSpacing.xs,
                               ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusMd,
+                                ),
+                                side:
+                                    ThemeNotifier().isDarkMode
+                                        ? const BorderSide(
+                                          color: Colors.white,
+                                          width: 1.5,
+                                        )
+                                        : BorderSide.none,
+                              ),
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: AppColors.primary.withValues(
-                                    alpha: 0.2,
-                                  ),
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.1),
                                   child: Icon(
                                     Icons.chat_bubble_outline,
-                                    color: AppColors.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
                                     size: 20,
                                   ),
                                 ),
@@ -818,7 +862,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                 subtitle: Text(
                                   '$messageCount ${strings.get('messages')} • $timeStr',
                                   style: TextStyle(
-                                    color: AppColors.textSecondary,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.7),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -846,12 +893,25 @@ class _ChatScreenState extends State<ChatScreen> {
                     });
                     Navigator.pop(context);
                   },
-                  icon: const Icon(Icons.delete_outline),
-                  label: Text(strings.get('clearCurrentChat')),
+                  icon: const Icon(Icons.delete_outline, color: Colors.white),
+                  label: Text(
+                    strings.get('clearCurrentChat'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error.withValues(alpha: 0.3),
-                    foregroundColor: AppColors.error,
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
                     minimumSize: const Size(double.infinity, 48),
+                    side: BorderSide(
+                      color:
+                          ThemeNotifier().isDarkMode
+                              ? Colors.white
+                              : Colors.black,
+                      width: 2.0,
+                    ),
                   ),
                 ),
               ),
@@ -888,7 +948,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_isLoading)
             Padding(
               padding: const EdgeInsets.all(AppSpacing.sm),
-              child: LinearProgressIndicator(color: AppColors.sdg11Yellow),
+              child: LinearProgressIndicator(color: Colors.white),
             ),
 
           // Pending image preview
@@ -907,80 +967,111 @@ class _ChatScreenState extends State<ChatScreen> {
                 top: BorderSide(color: AppColors.primary, width: 2),
               ),
             ),
-            child: Row(
-              children: [
-                if (_isLiveMode) ...[
-                  // Live Mode: Large microphone button
-                  Expanded(
-                    child: Center(
+            child:
+                _isLiveMode
+                    ? Center(
                       child: MicrophoneButton(
                         isRecording: _isRecording,
                         isAiSpeaking: _isAiSpeaking,
                         isEnabled: _isLiveSessionActive,
                         onPressed: _toggleRecording,
                       ),
+                    )
+                    : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: _textController,
+                          style: AppTextStyles.bodyMedium,
+                          decoration: InputDecoration(
+                            hintText:
+                                _pendingImage != null
+                                    ? strings.get('addMessageAboutImage')
+                                    : strings.get('typeMessage'),
+                          ),
+                          onSubmitted: (val) => _handleSendMessage(text: val),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Row(
+                          children: [
+                            Builder(
+                              builder:
+                                  (context) => IconButton(
+                                    icon: Icon(
+                                      Icons.menu,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                      size: 32,
+                                    ),
+                                    onPressed:
+                                        () => Scaffold.of(context).openDrawer(),
+                                    tooltip: strings.get('settingsAndHistory'),
+                                    style: IconButton.styleFrom(
+                                      padding: const EdgeInsets.all(
+                                        AppSpacing.sm,
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                            Semantics(
+                              label: strings.get('chooseFromGallery'),
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.photo_library,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  size: 36,
+                                ),
+                                onPressed:
+                                    () => _pickImage(ImageSource.gallery),
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                ),
+                              ),
+                            ),
+                            Semantics(
+                              label: strings.get('takePicture'),
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.camera_alt,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  size: 36,
+                                ),
+                                onPressed: () => _pickImage(ImageSource.camera),
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Semantics(
+                              label: strings.get('sendMessage'),
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.send,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  size: 36,
+                                ),
+                                onPressed:
+                                    () => _handleSendMessage(
+                                      text: _textController.text,
+                                    ),
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                ] else ...[
-                  // Normal Mode: Camera, Gallery, Text, Send buttons
-                  Semantics(
-                    label: strings.get('takePicture'),
-                    button: true,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.camera_alt,
-                        color: AppColors.sdg9Orange,
-                        size: 40,
-                      ),
-                      onPressed: () => _pickImage(ImageSource.camera),
-                      style: IconButton.styleFrom(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                      ),
-                    ),
-                  ),
-                  Semantics(
-                    label: strings.get('chooseFromGallery'),
-                    button: true,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.photo_library,
-                        color: AppColors.sdg9Orange,
-                        size: 40,
-                      ),
-                      onPressed: () => _pickImage(ImageSource.gallery),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      style: AppTextStyles.bodyMedium,
-                      decoration: InputDecoration(
-                        hintText:
-                            _pendingImage != null
-                                ? strings.get('addMessageAboutImage')
-                                : strings.get('typeMessage'),
-                      ),
-                      onSubmitted: (val) => _handleSendMessage(text: val),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Semantics(
-                    label: strings.get('sendMessage'),
-                    button: true,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.send,
-                        color: AppColors.primary,
-                        size: 40,
-                      ),
-                      onPressed:
-                          () => _handleSendMessage(text: _textController.text),
-                    ),
-                  ),
-                ],
-              ],
-            ),
           ),
         ],
       ),

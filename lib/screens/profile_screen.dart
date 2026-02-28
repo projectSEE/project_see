@@ -135,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(strings.get('profileUpdated')),
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.black,
           ),
         );
       }
@@ -195,20 +195,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.account_circle,
                         size: 80,
-                        color: Colors.blueAccent,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                       const SizedBox(height: 24),
 
                       if (_errorMessage != null)
                         Container(
                           padding: const EdgeInsets.all(12),
-                          color: Colors.red.shade100,
+                          color: const Color(0xFFE0E0E0),
                           child: Text(
                             _errorMessage!,
-                            style: TextStyle(color: Colors.red.shade900),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                           ),
                         ),
 
@@ -322,17 +324,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: strings.get('signOut'),
                         child: OutlinedButton.icon(
                           onPressed: _signOut,
-                          icon: const Icon(Icons.logout, color: Colors.red),
+                          icon: Icon(
+                            Icons.logout,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                           label: Text(
                             strings.get('signOut'),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
-                              color: Colors.red,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(color: Colors.red),
+                            side: BorderSide(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                           ),
                         ),
                       ),

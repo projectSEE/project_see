@@ -71,7 +71,8 @@ class _LiveTestScreenState extends State<LiveTestScreen> {
 
   void _log(String msg, [String level = 'info']) {
     final now = DateTime.now();
-    final ts = '${now.hour.toString().padLeft(2, '0')}:'
+    final ts =
+        '${now.hour.toString().padLeft(2, '0')}:'
         '${now.minute.toString().padLeft(2, '0')}:'
         '${now.second.toString().padLeft(2, '0')}';
     debugPrint('[$ts] $msg');
@@ -191,9 +192,10 @@ Response rules:
       _session = session;
       _isConnected = true;
 
-      _connectTimeMs =
-          DateTime.now().difference(startTime).inMilliseconds;
-      _log('✅ Connected in ${_connectTimeMs}ms (VAD: LOW/LOW, silence: 1500ms)');
+      _connectTimeMs = DateTime.now().difference(startTime).inMilliseconds;
+      _log(
+        '✅ Connected in ${_connectTimeMs}ms (VAD: LOW/LOW, silence: 1500ms)',
+      );
       setState(() {});
 
       // Start receive loop
@@ -320,32 +322,29 @@ Response rules:
         _isStreamingAudio = false;
         return;
       }
-      audioStream.listen(
-        (data) async {
-          if (!_isConnected || _session == null) return;
+      audioStream.listen((data) async {
+        if (!_isConnected || _session == null) return;
 
-          // Hardware AEC handles echo cancellation — mic stays active
-          // so the server can detect user barge-in while AI speaks
+        // Hardware AEC handles echo cancellation — mic stays active
+        // so the server can detect user barge-in while AI speaks
 
-          // ── Push-to-Talk: only send when PTT button is held ──
-          if (_pushToTalkMode && !_pttPressed) return;
+        // ── Push-to-Talk: only send when PTT button is held ──
+        if (_pushToTalkMode && !_pttPressed) return;
 
-          try {
-            await _session!.sendAudioRealtime(
-              InlineDataPart('audio/pcm;rate=16000', data),
-            );
-            _audioChunksSent++;
-            if (_audioChunksSent % 100 == 0) {
-              _log('🎤 Sent: $_audioChunksSent chunks');
-            }
-          } catch (e) {
-            if (e.toString().contains('Closed')) {
-              _isStreamingAudio = false;
-            }
+        try {
+          await _session!.sendAudioRealtime(
+            InlineDataPart('audio/pcm;rate=16000', data),
+          );
+          _audioChunksSent++;
+          if (_audioChunksSent % 100 == 0) {
+            _log('🎤 Sent: $_audioChunksSent chunks');
           }
-        },
-        onError: (e) => _log('❌ Mic: $e', 'error'),
-      );
+        } catch (e) {
+          if (e.toString().contains('Closed')) {
+            _isStreamingAudio = false;
+          }
+        }
+      }, onError: (e) => _log('❌ Mic: $e', 'error'));
     } catch (e) {
       _log('❌ Mic start: $e', 'error');
       _isStreamingAudio = false;
@@ -384,31 +383,27 @@ Response rules:
 
     _isConvertingFrame = true;
     try {
-      final jpegBytes = await _imageChannel.invokeMethod(
-        'convertYuvToJpeg',
-        {
-          'width': frame.width,
-          'height': frame.height,
-          'yPlane': frame.planes[0].bytes,
-          'uPlane': frame.planes.length > 1 ? frame.planes[1].bytes : null,
-          'vPlane': frame.planes.length > 2 ? frame.planes[2].bytes : null,
-          'yRowStride': frame.planes[0].bytesPerRow,
-          'uvPixelStride':
-              frame.planes.length > 1 ? frame.planes[1].bytesPerPixel ?? 1 : 1,
-          'quality': 40,
-        },
-      );
+      final jpegBytes = await _imageChannel.invokeMethod('convertYuvToJpeg', {
+        'width': frame.width,
+        'height': frame.height,
+        'yPlane': frame.planes[0].bytes,
+        'uPlane': frame.planes.length > 1 ? frame.planes[1].bytes : null,
+        'vPlane': frame.planes.length > 2 ? frame.planes[2].bytes : null,
+        'yRowStride': frame.planes[0].bytesPerRow,
+        'uvPixelStride':
+            frame.planes.length > 1 ? frame.planes[1].bytesPerPixel ?? 1 : 1,
+        'quality': 40,
+      });
 
       if (!_isConnected || _session == null) return;
 
-      await session.sendVideoRealtime(
-        InlineDataPart('image/jpeg', jpegBytes),
-      );
+      await session.sendVideoRealtime(InlineDataPart('image/jpeg', jpegBytes));
 
       _videoFramesSent++;
       if (_videoFramesSent % 5 == 0) {
         _log(
-            '📷 Frame #$_videoFramesSent (${(jpegBytes.length / 1024).toStringAsFixed(0)}KB)');
+          '📷 Frame #$_videoFramesSent (${(jpegBytes.length / 1024).toStringAsFixed(0)}KB)',
+        );
       }
     } catch (e) {
       final msg = e.toString();
@@ -435,10 +430,7 @@ Response rules:
     }
     _log('📤 "$text"');
     try {
-      await _session!.send(
-        input: Content.text(text),
-        turnComplete: true,
-      );
+      await _session!.send(input: Content.text(text), turnComplete: true);
     } catch (e) {
       _log('❌ Send: $e', 'error');
     }
@@ -454,7 +446,9 @@ Response rules:
         await _session!.sendAudioRealtime(
           InlineDataPart('audio/pcm;rate=16000', silence),
         );
-      } catch (_) { break; }
+      } catch (_) {
+        break;
+      }
       await Future.delayed(const Duration(milliseconds: 100));
     }
     _log('🔇 Silence tail sent (VAD should trigger)');
@@ -504,12 +498,14 @@ Response rules:
           IconButton(
             icon: Icon(
               _pushToTalkMode ? Icons.touch_app : Icons.mic,
-              color: _pushToTalkMode ? Colors.orange : Colors.white70,
+              color: _pushToTalkMode ? Colors.white : Colors.white70,
             ),
             tooltip: _pushToTalkMode ? 'Push-to-Talk ON' : 'Always Listen',
             onPressed: () {
               setState(() => _pushToTalkMode = !_pushToTalkMode);
-              _log('🎛️ Mode: ${_pushToTalkMode ? "Push-to-Talk" : "Always Listen"}');
+              _log(
+                '🎛️ Mode: ${_pushToTalkMode ? "Push-to-Talk" : "Always Listen"}',
+              );
             },
           ),
           // Status badge
@@ -517,9 +513,10 @@ Response rules:
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: _isConnected
-                  ? (_aiIsSpeaking ? Colors.orange.shade800 : Colors.green.shade800)
-                  : Colors.red.shade800,
+              color:
+                  _isConnected
+                      ? (_aiIsSpeaking ? Colors.white : Colors.white)
+                      : Colors.white,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -557,7 +554,9 @@ Response rules:
                         'Echo cancel: ${_aiIsSpeaking ? "MUTED" : "OPEN"}\n'
                         'Mode: ${_pushToTalkMode ? "PTT" : "Auto"}',
                         style: const TextStyle(
-                            color: Colors.greenAccent, fontSize: 10),
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
                       ),
                     ),
                   ),
@@ -574,12 +573,13 @@ Response rules:
                   child: ElevatedButton.icon(
                     onPressed: _isConnected ? _stopAll : _startAll,
                     icon: Icon(
-                        _isConnected ? Icons.stop_circle : Icons.play_circle),
+                      _isConnected ? Icons.stop_circle : Icons.play_circle,
+                    ),
                     label: Text(_isConnected ? 'STOP' : 'START'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          _isConnected ? Colors.red : Colors.green,
-                      foregroundColor: Colors.white,
+                          _isConnected ? Colors.white : Colors.white,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
@@ -609,12 +609,9 @@ Response rules:
                       width: 120,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: _pttPressed ? Colors.red : Colors.blue,
+                        color: _pttPressed ? Colors.white : Colors.white,
                         borderRadius: BorderRadius.circular(32),
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 2,
-                        ),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                       child: Center(
                         child: Column(
@@ -622,13 +619,13 @@ Response rules:
                           children: [
                             Icon(
                               _pttPressed ? Icons.mic : Icons.mic_off,
-                              color: Colors.white,
+                              color: Colors.black,
                               size: 28,
                             ),
                             Text(
                               _pttPressed ? 'TALKING' : 'HOLD',
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: Colors.black,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -664,7 +661,7 @@ Response rules:
               margin: const EdgeInsets.all(8),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade900,
+                color: Colors.black,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -676,13 +673,23 @@ Response rules:
                       Text(
                         'LOG (${_logEntries.length})',
                         style: const TextStyle(
-                            color: Colors.white70, fontSize: 11),
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
                       ),
-                      GestureDetector(
-                        onTap: () => setState(() => _logEntries.clear()),
-                        child: const Text('Clear',
+                      Semantics(
+                        button: true,
+                        label: 'Clear log',
+                        child: GestureDetector(
+                          onTap: () => setState(() => _logEntries.clear()),
+                          child: const Text(
+                            'Clear',
                             style: TextStyle(
-                                color: Colors.white38, fontSize: 11)),
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -696,9 +703,9 @@ Response rules:
                         Color color;
                         switch (entry.level) {
                           case 'error':
-                            color = Colors.redAccent;
+                            color = Colors.white;
                           case 'success':
-                            color = Colors.greenAccent;
+                            color = Colors.white;
                           default:
                             color = Colors.white70;
                         }
@@ -729,7 +736,7 @@ Response rules:
     return ActionChip(
       label: Text(text, style: const TextStyle(fontSize: 11)),
       onPressed: () => _sendTextPrompt(text),
-      backgroundColor: Colors.blue.shade800,
+      backgroundColor: Colors.black,
       labelStyle: const TextStyle(color: Colors.white),
     );
   }

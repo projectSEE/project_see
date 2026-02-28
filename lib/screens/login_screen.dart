@@ -441,6 +441,7 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
               ),
+              tooltip: 'Toggle password visibility',
               onPressed:
                   () => setState(() => _obscurePassword = !_obscurePassword),
             ),
@@ -625,6 +626,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
                 ),
+                tooltip: 'Toggle password visibility',
                 onPressed:
                     () => setState(() => _obscurePassword = !_obscurePassword),
               ),
@@ -646,6 +648,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 icon: Icon(
                   _obscureConfirm ? Icons.visibility_off : Icons.visibility,
                 ),
+                tooltip: 'Toggle password visibility',
                 onPressed:
                     () => setState(() => _obscureConfirm = !_obscureConfirm),
               ),
