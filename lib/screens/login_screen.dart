@@ -207,7 +207,6 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         return;
       }
-      // Verified → userChanges() in main.dart navigates to HomeScreen
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = e.message ?? 'Authentication failed');
     } catch (e) {
