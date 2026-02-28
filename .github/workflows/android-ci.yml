@@ -48,7 +48,7 @@ jobs:
 
       # 7. Build the APK
       - name: Build Release APK
-        run: flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: flutter build apk --release --build-number=${{ github.run_number }} --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
         env:
           DEBUG_KEYSTORE_PATH: /home/runner/.android/debug.keystore
 
