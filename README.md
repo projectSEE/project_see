@@ -375,7 +375,7 @@ For the full troubleshooting guide, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## 📄 License
 
-This project was built for **KitaHack 2025**.
+This project was built for **KitaHack 2026**.
 
 ---
 
