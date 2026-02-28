@@ -1,6 +1,5 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'dart:math';
 import '../core/localization/app_localizations.dart';
 import '../core/services/language_provider.dart';
@@ -48,42 +47,44 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = AppLocalizations(_langNotifier.languageCode);
-    if (!_isCameraInitialized)
+    if (!_isCameraInitialized) {
       return const Scaffold(backgroundColor: Colors.black);
+    }
 
-    bool hideLine = _splitPosition > 0.5;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final double splitX = screenWidth * _splitPosition;
+    final bool hideLine = _splitPosition > 0.5;
 
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // LAYER 1: Impaired Vision (Background)
+          // LAYER 1: Single clean camera preview (full screen — always clear)
           CameraPreview(_controller!),
-          _buildVisionFilter(),
 
-          // LAYER 2: Normal Vision (Foreground - Left Side)
-          ClipRect(
-            clipper: _SplitClipper(_splitPosition),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CameraPreview(_controller!),
-                Positioned(
-                  top: 50,
-                  left: 10,
-                  child: Chip(
-                    label: Text(
-                      strings.get('normalVision'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                    backgroundColor: Colors.white,
-                    visualDensity: VisualDensity.compact,
-                  ),
+          // LAYER 2: Vision filter positioned to RIGHT side only
+          Positioned(
+            left: splitX,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildVisionFilter(),
+          ),
+
+          // Label for Normal Side
+          Positioned(
+            top: 50,
+            left: 10,
+            child: Chip(
+              label: Text(
+                strings.get('normalVision'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
-              ],
+              ),
+              backgroundColor: Colors.white,
+              visualDensity: VisualDensity.compact,
             ),
           ),
 
@@ -100,106 +101,101 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
                   fontSize: 12,
                 ),
               ),
-              backgroundColor: Colors.black,
+              backgroundColor: Colors.black, // From the merged code styling
               visualDensity: VisualDensity.compact,
             ),
           ),
 
-          // LAYER 3: The "Bar" Slider Handle
-          LayoutBuilder(
-            builder: (context, constraints) {
-              double position = constraints.maxWidth * _splitPosition;
-              return Positioned(
-                left: position - 25, // Center the 50px wide bar
-                top: 0,
-                bottom: 0,
-                child: Semantics(
-                  label: 'Adjust vision split slider',
-                  slider: true,
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: (details) {
-                      setState(() {
-                        _splitPosition +=
-                            details.delta.dx / constraints.maxWidth;
-                        _splitPosition = _splitPosition.clamp(0.0, 1.0);
-                      });
-                    },
-                    child: Container(
-                      width: 50, // Wide touch area
-                      color: Colors.transparent,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Top Line
-                          Expanded(
-                            child: Container(
-                              width: 2,
-                              color:
-                                  hideLine
-                                      ? Colors.transparent
-                                      : Colors.white70,
-                            ),
-                          ),
-
-                          // THE NEW HANDLE: Horizontal Bar with Arrows
-                          Container(
-                            height: 40,
-                            width:
-                                80, // Wider than the touch column to look like a bar
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                const BoxShadow(
-                                  blurRadius: 8,
-                                  color: Colors.black45,
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.chevron_left,
-                                  size: 20,
-                                  color: Colors.black,
-                                ),
-                                Text(
-                                  strings.get('slide'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.chevron_right,
-                                  size: 20,
-                                  color: Colors.black,
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Bottom Line
-                          Expanded(
-                            child: Container(
-                              width: 2,
-                              color:
-                                  hideLine
-                                      ? Colors.transparent
-                                      : Colors.white70,
-                            ),
-                          ),
-                        ],
+          // LAYER 3: The Slider Handle
+          Positioned(
+            left: splitX - 25,
+            top: 0,
+            bottom: 0,
+            child: Semantics(
+              label: 'Adjust vision split slider',
+              slider: true,
+              child: GestureDetector(
+                onHorizontalDragUpdate: (details) {
+                  setState(() {
+                    _splitPosition += details.delta.dx / screenWidth;
+                    _splitPosition = _splitPosition.clamp(0.0, 1.0);
+                  });
+                },
+                child: Container(
+                  width: 50,
+                  color: Colors.transparent,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          width: 2,
+                          color: hideLine ? Colors.transparent : Colors.white70,
+                        ),
                       ),
-                    ),
+                      Container(
+                        height: 40,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            const BoxShadow(
+                              blurRadius: 8,
+                              color: Colors.black45,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.chevron_left,
+                              size: 20,
+                              color: Colors.black,
+                            ),
+                            Text(
+                              strings.get('slide'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 20,
+                              color: Colors.black,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          width: 2,
+                          color: hideLine ? Colors.transparent : Colors.white70,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
 
-          // LAYER 4: Mode Selector (Perfectly Fitted)
+          // Full-screen drag detector (so dragging works anywhere)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  _splitPosition += details.delta.dx / screenWidth;
+                  _splitPosition = _splitPosition.clamp(0.0, 1.0);
+                });
+              },
+            ),
+          ),
+
+          // LAYER 4: Mode Selector
           Positioned(
             bottom: 30,
             left: 10,
@@ -248,10 +244,24 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
         ),
       );
     } else if (_currentMode == "Cataracts") {
-      return BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-        // FIXED: .withOpacity() is deprecated, using .withValues() instead
-        child: Container(color: Colors.white.withValues(alpha: 0.1)),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.white.withValues(alpha: 0.45)),
+          Container(color: Colors.yellow.withValues(alpha: 0.08)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.15),
+                  Colors.white.withValues(alpha: 0.35),
+                ],
+                stops: const [0.3, 1.0],
+                radius: 1.2,
+              ),
+            ),
+          ),
+        ],
       );
     } else if (_currentMode == "Retinopathy") {
       return CustomPaint(painter: RetinopathyPainter(), child: Container());
@@ -298,7 +308,6 @@ class RetinopathyPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint =
         Paint()
-          // FIXED: .withOpacity() is deprecated, using .withValues() instead
           ..color = Colors.black.withValues(alpha: 0.7)
           ..style = PaintingStyle.fill
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
@@ -314,17 +323,4 @@ class RetinopathyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _SplitClipper extends CustomClipper<Rect> {
-  final double splitFactor;
-  _SplitClipper(this.splitFactor);
-
-  @override
-  Rect getClip(Size size) =>
-      Rect.fromLTWH(0, 0, size.width * splitFactor, size.height);
-
-  @override
-  bool shouldReclip(_SplitClipper oldClipper) =>
-      splitFactor != oldClipper.splitFactor;
 }

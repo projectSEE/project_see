@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'screens/chat_screen.dart';
 import 'screens/object_detection_screen.dart';
 import 'screens/live_screen.dart';
-import 'screens/live_test_screen.dart';
 import 'screens/navigation_screen.dart';
 import 'theme/theme.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -345,26 +344,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // —— LIVE TEST (DEBUG) ——
-                      _buildFeatureButton(
-                        icon: Icons.bug_report_rounded,
-                        label: strings.get('liveTest'),
-                        subtitle: strings.get('liveTestSubtitle'),
-                        semanticLabel: strings.get('liveTestSemantic'),
-                        onTap: () async {
-                          await _ttsService.speak(
-                            strings.get('openingLiveTest'),
-                          );
-                          if (!context.mounted) return;
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const LiveTestScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
 
                       // —— NAVIGATION ——
                       _buildFeatureButton(

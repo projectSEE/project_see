@@ -266,7 +266,6 @@ class AppLocalizations {
       'weSentResetLink': 'We sent a password reset link to',
 
       // Obstacle Detector Hub
-      'obstacleDetectorHub': 'Obstacle Detector',
       'chooseAFeature': 'Choose a feature',
       'objectDetection': 'OBJECT DETECTION',
       'objectDetectionSubtitle':
@@ -279,17 +278,12 @@ class AppLocalizations {
       'liveAssistantSemantic':
           'Live Assistant. Start a real-time conversation with Gemini AI using voice and camera.',
       'openingLiveAssistant': 'Opening live assistant',
-      'liveTest': 'LIVE TEST',
-      'liveTestSubtitle': 'Debug Live API step by step',
-      'liveTestSemantic': 'Live Test. Debug the Gemini Live API step by step.',
-      'openingLiveTest': 'Opening live test',
+
       'navigateSubtitle': 'Voice-guided walking directions',
       'navigateSemantic':
           'Navigate. Get voice-guided walking directions to a destination.',
       'openingNavigation': 'Opening navigation',
       'goBackHome': 'Go back to home screen',
-      'obstacleDetectorMenuTts':
-          'Obstacle detector menu. Three options available: Object Detection, Live Assistant, and Navigation.',
 
       // Feature & Settings TTS
       'usingLanguage': 'You are using English',
@@ -547,7 +541,6 @@ class AppLocalizations {
       'weSentResetLink': '我们已发送密码重置链接到',
 
       // Obstacle Detector Hub
-      'obstacleDetectorHub': '障碍物检测器',
       'chooseAFeature': '选择一个功能',
       'objectDetection': '物体检测',
       'objectDetectionSubtitle': '使用摄像头和触觉反馈检测障碍物',
@@ -557,15 +550,11 @@ class AppLocalizations {
       'liveAssistantSubtitle': '使用语音和摄像头的实时 AI 助手',
       'liveAssistantSemantic': '实时助手。使用语音和摄像头与 Gemini AI 进行实时对话。',
       'openingLiveAssistant': '正在打开实时助手',
-      'liveTest': '实时测试',
-      'liveTestSubtitle': '逐步调试 Live API',
-      'liveTestSemantic': '实时测试。逐步调试 Gemini Live API。',
-      'openingLiveTest': '正在打开实时测试',
+
       'navigateSubtitle': '语音引导步行方向',
       'navigateSemantic': '导航。获取到达目的地的语音引导步行方向。',
       'openingNavigation': '正在打开导航',
       'goBackHome': '返回主屏幕',
-      'obstacleDetectorMenuTts': '障碍物检测器菜单。三个可用选项：物体检测、实时助手和导航。',
 
       // Feature & Settings TTS
       'usingLanguage': '您正在使用中文',
@@ -844,7 +833,6 @@ class AppLocalizations {
           'Kami telah menghantar pautan set semula kata laluan ke',
 
       // Obstacle Detector Hub
-      'obstacleDetectorHub': 'Pengesan Halangan',
       'chooseAFeature': 'Pilih satu ciri',
       'objectDetection': 'PENGESANAN OBJEK',
       'objectDetectionSubtitle':
@@ -857,18 +845,12 @@ class AppLocalizations {
       'liveAssistantSemantic':
           'Pembantu Langsung. Mulakan perbualan masa nyata dengan Gemini AI menggunakan suara dan kamera.',
       'openingLiveAssistant': 'Membuka pembantu langsung',
-      'liveTest': 'UJIAN LANGSUNG',
-      'liveTestSubtitle': 'Nyahpepijat API Langsung langkah demi langkah',
-      'liveTestSemantic':
-          'Ujian Langsung. Nyahpepijat API Gemini Live langkah demi langkah.',
-      'openingLiveTest': 'Membuka ujian langsung',
+
       'navigateSubtitle': 'Arah berjalan dipandu suara',
       'navigateSemantic':
           'Navigasi. Dapatkan arah berjalan dipandu suara ke destinasi.',
       'openingNavigation': 'Membuka navigasi',
       'goBackHome': 'Kembali ke skrin utama',
-      'obstacleDetectorMenuTts':
-          'Menu pengesan halangan. Tiga pilihan tersedia: Pengesanan Objek, Pembantu Langsung, dan Navigasi.',
 
       // Feature & Settings TTS
       'usingLanguage': 'Anda sedang menggunakan bahasa Melayu',
@@ -1149,7 +1131,6 @@ class AppLocalizations {
           'கடவுச்சொல் மீட்டமைப்பு இணைப்பை நாங்கள் அனுப்பியுள்ளோம்',
 
       // Obstacle Detector Hub
-      'obstacleDetectorHub': 'தடை கண்டறிதல்',
       'chooseAFeature': 'ஒரு அம்சத்தைத் தேர்ந்தெடுக்கவும்',
       'objectDetection': 'பொருள் கண்டறிதல்',
       'objectDetectionSubtitle':
@@ -1162,18 +1143,12 @@ class AppLocalizations {
       'liveAssistantSemantic':
           'நேரடி உதவியாளர். குரல் மற்றும் கேமராவைப் பயன்படுத்தி Gemini AI உடன் நிகழ்நேர உரையாடலைத் தொடங்கவும்.',
       'openingLiveAssistant': 'நேரடி உதவியாளரைத் திறக்கிறது',
-      'liveTest': 'நேரடி சோதனை',
-      'liveTestSubtitle': 'படிப்படியாக நேரடி API-ஐ பிழைத்திருத்தம் செய்யவும்',
-      'liveTestSemantic':
-          'நேரடி சோதனை. படிப்படியாக Gemini Live API-ஐ பிழைத்திருத்தம் செய்யவும்.',
-      'openingLiveTest': 'நேரடி சோதனையைத் திறக்கிறது',
+
       'navigateSubtitle': 'குரல் வழிகாட்டும் நடைபயணத் திசைகள்',
       'navigateSemantic':
           'வழிகாட்டுதல். இலக்குக்கான குரல் வழிகாட்டும் நடைபயணத் திசைகளைப் பெறுங்கள்.',
       'openingNavigation': 'வழிகாட்டுதலைத் திறக்கிறது',
       'goBackHome': 'முகப்புத் திரைக்குத் திரும்பு',
-      'obstacleDetectorMenuTts':
-          'தடை கண்டறிதல் மெனு. மூன்று விருப்பங்கள் கிடைக்கின்றன: பொருள் கண்டறிதல், நேரடி உதவியாளர், மற்றும் வழிகாட்டுதல்.',
 
       // Feature & Settings TTS
       'usingLanguage': 'நீங்கள் தமிழ் பயன்படுத்துகிறீர்கள்',

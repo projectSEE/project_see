@@ -82,7 +82,6 @@ lib/
 │   ├── sight_facts_screen.dart   # Educational content
 │   └── vision_simulator_screen.dart  # Eye condition simulator
 ├── services/
-│   ├── depth_estimation_service.dart      # ONNX depth estimation
 │   ├── firestore_service.dart             # Firestore CRUD operations
 │   ├── gemini_service.dart                # Gemini AI integration
 │   ├── location_awareness_service.dart    # Location context
@@ -119,8 +118,8 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/see.git
-cd see
+git clone https://github.com/projectSEE/project_see.git
+cd project_see
 ```
 
 ### 2. Install Flutter (via FVM — Recommended)
@@ -270,8 +269,7 @@ see/
 │           └── AndroidManifest.xml  # Permissions & API keys
 ├── assets/
 │   ├── audio/                # Sound assets (siren for fall detection)
-│   ├── google_fonts/         # Custom fonts
-│   └── models/               # ML models (ONNX)
+│   └── google_fonts/         # Custom fonts
 ├── lib/                      # Dart source code (see Architecture above)
 ├── .env                      # Environment variables (git-ignored)
 ├── .fvmrc                    # FVM Flutter version config
@@ -348,7 +346,7 @@ For the full troubleshooting guide, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 | Category | Technology |
 |----------|------------|
 | **Framework** | Flutter 3.29.0 / Dart 3.7.0 |
-| **AI / ML** | Google Gemini (Firebase AI), Google ML Kit, ONNX Runtime |
+| **AI / ML** | Google Gemini (Firebase AI), Google ML Kit |
 | **Backend** | Firebase (Auth, Firestore, Storage, Vertex AI) |
 | **Maps** | Google Maps Flutter, Geolocator, Geocoding |
 | **Voice** | Speech-to-Text, Flutter TTS, Audio Recording |
