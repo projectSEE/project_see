@@ -1,7 +1,8 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-
 import 'dart:math';
+import '../core/localization/app_localizations.dart';
+import '../core/services/language_provider.dart';
 
 class VisionSimulatorScreen extends StatefulWidget {
   const VisionSimulatorScreen({super.key});
@@ -15,11 +16,17 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
   bool _isCameraInitialized = false;
   String _currentMode = "Glaucoma";
   double _splitPosition = 0.5; // 0.0 to 1.0
+  final LanguageNotifier _langNotifier = LanguageNotifier();
 
   @override
   void initState() {
     super.initState();
+    _langNotifier.addListener(_onLangChanged);
     _initializeCamera();
+  }
+
+  void _onLangChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _initializeCamera() async {
@@ -32,13 +39,17 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 
   @override
   void dispose() {
+    _langNotifier.removeListener(_onLangChanged);
     _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized) return const Scaffold(backgroundColor: Colors.black);
+    final strings = AppLocalizations(_langNotifier.languageCode);
+    if (!_isCameraInitialized) {
+      return const Scaffold(backgroundColor: Colors.black);
+    }
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final double splitX = screenWidth * _splitPosition;
@@ -62,9 +73,16 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 
           // Label for Normal Side
           Positioned(
-            top: 50, left: 10,
+            top: 50,
+            left: 10,
             child: Chip(
-              label: const Text("NORMAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              label: Text(
+                strings.get('normalVision'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
               backgroundColor: Colors.white,
               visualDensity: VisualDensity.compact,
             ),
@@ -72,10 +90,18 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 
           // Label for Impaired Side
           Positioned(
-            top: 50, right: 10,
+            top: 50,
+            right: 10,
             child: Chip(
-              label: Text(_currentMode.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-              backgroundColor: Colors.redAccent,
+              label: Text(
+                _currentMode.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              backgroundColor: Colors.black, // From the merged code styling
               visualDensity: VisualDensity.compact,
             ),
           ),
@@ -85,39 +111,72 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
             left: splitX - 25,
             top: 0,
             bottom: 0,
-            child: GestureDetector(
-              onHorizontalDragUpdate: (details) {
-                setState(() {
-                  _splitPosition += details.delta.dx / screenWidth;
-                  _splitPosition = _splitPosition.clamp(0.0, 1.0);
-                });
-              },
-              child: Container(
-                width: 50,
-                color: Colors.transparent,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(child: Container(width: 2, color: hideLine ? Colors.transparent : Colors.white70)),
-                    Container(
-                      height: 40,
-                      width: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [const BoxShadow(blurRadius: 8, color: Colors.black45)],
+            child: Semantics(
+              label: 'Adjust vision split slider',
+              slider: true,
+              child: GestureDetector(
+                onHorizontalDragUpdate: (details) {
+                  setState(() {
+                    _splitPosition += details.delta.dx / screenWidth;
+                    _splitPosition = _splitPosition.clamp(0.0, 1.0);
+                  });
+                },
+                child: Container(
+                  width: 50,
+                  color: Colors.transparent,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          width: 2,
+                          color: hideLine ? Colors.transparent : Colors.white70,
+                        ),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.chevron_left, size: 20, color: Colors.black),
-                          Text("SLIDE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10)),
-                          Icon(Icons.chevron_right, size: 20, color: Colors.black),
-                        ],
+                      Container(
+                        height: 40,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            const BoxShadow(
+                              blurRadius: 8,
+                              color: Colors.black45,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.chevron_left,
+                              size: 20,
+                              color: Colors.black,
+                            ),
+                            Text(
+                              strings.get('slide'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 20,
+                              color: Colors.black,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Expanded(child: Container(width: 2, color: hideLine ? Colors.transparent : Colors.white70)),
-                  ],
+                      Expanded(
+                        child: Container(
+                          width: 2,
+                          color: hideLine ? Colors.transparent : Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -138,7 +197,9 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 
           // LAYER 4: Mode Selector
           Positioned(
-            bottom: 30, left: 10, right: 10,
+            bottom: 30,
+            left: 10,
+            right: 10,
             child: Container(
               padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
@@ -147,9 +208,21 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
               ),
               child: Row(
                 children: [
-                  _buildModeBtn("Glaucoma", Colors.green),
-                  _buildModeBtn("Cataracts", Colors.blue),
-                  _buildModeBtn("Retinopathy", Colors.orange),
+                  _buildModeBtn(
+                    strings.get('glaucoma'),
+                    Colors.black,
+                    "Glaucoma",
+                  ),
+                  _buildModeBtn(
+                    strings.get('cataracts'),
+                    Colors.black,
+                    "Cataracts",
+                  ),
+                  _buildModeBtn(
+                    strings.get('retinopathy'),
+                    Colors.black,
+                    "Retinopathy",
+                  ),
                 ],
               ),
             ),
@@ -196,28 +269,33 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildModeBtn(String mode, Color color) {
-    bool isSelected = _currentMode == mode;
+  // UPDATED BUTTON BUILDER: Uses Expanded to fit perfectly
+  Widget _buildModeBtn(String label, Color color, String modeKey) {
+    bool isSelected = _currentMode == modeKey;
     return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _currentMode = mode),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? color : Colors.white10,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            mode, 
-            style: const TextStyle(
-              color: Colors.white, 
-              fontWeight: FontWeight.bold, 
-              fontSize: 12,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          onTap: () => setState(() => _currentMode = modeKey),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? color : Colors.white10,
+              borderRadius: BorderRadius.circular(10),
             ),
-            overflow: TextOverflow.ellipsis,
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ),
@@ -228,10 +306,11 @@ class _VisionSimulatorScreenState extends State<VisionSimulatorScreen> {
 class RetinopathyPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.7)
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    final paint =
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.7)
+          ..style = PaintingStyle.fill
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
     final random = Random(42);
     for (int i = 0; i < 20; i++) {

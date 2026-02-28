@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 /// Service for Firestore database and Firebase Storage operations.
-/// 
+///
 /// Structure:
 /// - conversations/{userId}/topics/{topicId}/messages/{messageId}
 /// - users/{userId}
@@ -23,12 +23,12 @@ class FirestoreService {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final ref = _storage.ref('chat_images/$userId/$topicId/$timestamp.jpg');
-      
+
       await ref.putData(
         imageBytes,
         SettableMetadata(contentType: 'image/jpeg'),
       );
-      
+
       return await ref.getDownloadURL();
     } catch (e) {
       print('Error uploading image: $e');
@@ -47,8 +47,9 @@ class FirestoreService {
     String? topicId,
     Uint8List? imageBytes,
   }) async {
-    final actualTopicId = topicId ?? DateTime.now().millisecondsSinceEpoch.toString();
-    
+    final actualTopicId =
+        topicId ?? DateTime.now().millisecondsSinceEpoch.toString();
+
     try {
       // Upload image if bytes provided
       String? imageUrl;
@@ -94,19 +95,21 @@ class FirestoreService {
         .doc(topicId);
 
     final doc = await topicRef.get();
-    
+
     if (doc.exists) {
       // Update existing topic
       await topicRef.update({
         'lastUpdated': FieldValue.serverTimestamp(),
-        'lastMessage': content.length > 100 ? '${content.substring(0, 100)}...' : content,
+        'lastMessage':
+            content.length > 100 ? '${content.substring(0, 100)}...' : content,
       });
     } else {
       // Create new topic
       await topicRef.set({
         'createdAt': FieldValue.serverTimestamp(),
         'lastUpdated': FieldValue.serverTimestamp(),
-        'firstMessage': content.length > 100 ? '${content.substring(0, 100)}...' : content,
+        'firstMessage':
+            content.length > 100 ? '${content.substring(0, 100)}...' : content,
         'lastMessage': content,
       });
     }
@@ -118,14 +121,15 @@ class FirestoreService {
     String topicId,
   ) async {
     try {
-      final snapshot = await _db
-          .collection('conversations')
-          .doc(userId)
-          .collection('topics')
-          .doc(topicId)
-          .collection('messages')
-          .orderBy('timestamp')
-          .get();
+      final snapshot =
+          await _db
+              .collection('conversations')
+              .doc(userId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('messages')
+              .orderBy('timestamp')
+              .get();
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
@@ -146,13 +150,14 @@ class FirestoreService {
   /// Get topic previews for chat history display.
   Future<List<Map<String, dynamic>>> getTopicPreviews(String userId) async {
     try {
-      final snapshot = await _db
-          .collection('conversations')
-          .doc(userId)
-          .collection('topics')
-          .orderBy('lastUpdated', descending: true)
-          .limit(50)
-          .get();
+      final snapshot =
+          await _db
+              .collection('conversations')
+              .doc(userId)
+              .collection('topics')
+              .orderBy('lastUpdated', descending: true)
+              .limit(50)
+              .get();
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
@@ -171,17 +176,17 @@ class FirestoreService {
   }
 
   /// Get all conversations grouped by topic ID.
-  Future<Map<String, List<Map<String, dynamic>>>> getConversationsGroupedByTopic(
-    String userId,
-  ) async {
+  Future<Map<String, List<Map<String, dynamic>>>>
+  getConversationsGroupedByTopic(String userId) async {
     final grouped = <String, List<Map<String, dynamic>>>{};
-    
+
     try {
-      final topicsSnapshot = await _db
-          .collection('conversations')
-          .doc(userId)
-          .collection('topics')
-          .get();
+      final topicsSnapshot =
+          await _db
+              .collection('conversations')
+              .doc(userId)
+              .collection('topics')
+              .get();
 
       for (final topicDoc in topicsSnapshot.docs) {
         final topicId = topicDoc.id;
@@ -193,7 +198,7 @@ class FirestoreService {
     } catch (e) {
       print('Error getting grouped conversations: $e');
     }
-    
+
     return grouped;
   }
 
@@ -201,16 +206,17 @@ class FirestoreService {
   Future<void> cleanupOldConversations(String userId) async {
     try {
       final fiveDaysAgo = DateTime.now().subtract(const Duration(days: 5));
-      
-      final snapshot = await _db
-          .collection('conversations')
-          .doc(userId)
-          .collection('topics')
-          .where('lastUpdated', isLessThan: Timestamp.fromDate(fiveDaysAgo))
-          .get();
+
+      final snapshot =
+          await _db
+              .collection('conversations')
+              .doc(userId)
+              .collection('topics')
+              .where('lastUpdated', isLessThan: Timestamp.fromDate(fiveDaysAgo))
+              .get();
 
       final batch = _db.batch();
-      
+
       for (final doc in snapshot.docs) {
         // Delete all messages in topic
         final messages = await doc.reference.collection('messages').get();
@@ -228,20 +234,20 @@ class FirestoreService {
     }
   }
 
-  // ==================== User Settings ====================
+  // ==================== User Settings & Profiles ====================
 
   /// Get user accessibility settings.
-  Future<Map<String, dynamic>> getAccessibilitySettings(String fullName) async {
+  Future<Map<String, dynamic>> getAccessibilitySettings(String userId) async {
     try {
-      final doc = await _db.collection('users').doc(fullName).get();
-      
+      final doc = await _db.collection('users').doc(userId).get();
+
       if (doc.exists && doc.data()?['settings'] != null) {
         return Map<String, dynamic>.from(doc.data()!['settings']);
       }
     } catch (e) {
       print('Error getting settings: $e');
     }
-    
+
     // Return defaults
     return {
       'visualImpairment': false,
@@ -255,26 +261,38 @@ class FirestoreService {
 
   /// Update user accessibility settings.
   Future<void> updateAccessibilitySettings(
-    String fullName,
+    String userId,
     Map<String, dynamic> settings,
   ) async {
-    await _db.collection('users').doc(fullName).set({
+    await _db.collection('users').doc(userId).set({
       'settings': settings,
       'lastUpdated': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
+  /// Get user profile.
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+    try {
+      final doc = await _db.collection('users').doc(userId).get();
+      if (doc.exists && doc.data()?['profile'] != null) {
+        return Map<String, dynamic>.from(doc.data()!['profile']);
+      }
+    } catch (e) {
+      print('Error getting user profile: $e');
+    }
+    return null;
+  }
+
   /// Update user profile.
-  /// Document ID is the user's full name: users/{fullName}/profile
+  /// Document ID is the user's UID: users/{userId}/profile
   Future<void> updateUserProfile(
-    String fullName,
+    String userId,
     Map<String, dynamic> data,
   ) async {
     data['lastActive'] = FieldValue.serverTimestamp();
-    await _db.collection('users').doc(fullName).set(
-      {'profile': data},
-      SetOptions(merge: true),
-    );
+    await _db.collection('users').doc(userId).set({
+      'profile': data,
+    }, SetOptions(merge: true));
   }
 
   // ==================== POIs ====================
@@ -283,7 +301,7 @@ class FirestoreService {
   Future<List<Map<String, dynamic>>> getAllPOIs() async {
     try {
       final snapshot = await _db.collection('pois').get();
-      
+
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
@@ -298,11 +316,9 @@ class FirestoreService {
   /// Get POIs by type.
   Future<List<Map<String, dynamic>>> getPOIsByType(String type) async {
     try {
-      final snapshot = await _db
-          .collection('pois')
-          .where('type', isEqualTo: type)
-          .get();
-      
+      final snapshot =
+          await _db.collection('pois').where('type', isEqualTo: type).get();
+
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
@@ -318,7 +334,7 @@ class FirestoreService {
 
   /// Build context for AI including user settings, location, and recent messages.
   Future<Map<String, dynamic>> buildContextForAI(
-    String fullName, {
+    String userId, {
     double? latitude,
     double? longitude,
     String? userAddress,
@@ -326,7 +342,7 @@ class FirestoreService {
     final context = <String, dynamic>{};
 
     try {
-      context['accessibilitySettings'] = await getAccessibilitySettings(fullName);
+      context['accessibilitySettings'] = await getAccessibilitySettings(userId);
 
       // Include user location if available
       if (latitude != null && longitude != null) {
@@ -338,19 +354,22 @@ class FirestoreService {
 
         // Get nearby POIs
         final allPOIs = await getAllPOIs();
-        final nearbyPOIs = allPOIs.where((poi) {
-          // Support both 'location' (new) and 'coords' (legacy) field names
-          final coords = (poi['location'] as Map<String, dynamic>?) 
-              ?? (poi['coords'] as Map<String, dynamic>?);
-          if (coords == null) return false;
-          
-          final lat = coords['latitude'] as num?;
-          final lng = coords['longitude'] as num?;
-          if (lat == null || lng == null) return false;
-          
-          // ~1km radius check
-          return (lat - latitude).abs() < 0.01 && (lng - longitude).abs() < 0.01;
-        }).toList();
+        final nearbyPOIs =
+            allPOIs.where((poi) {
+              // Support both 'location' (new) and 'coords' (legacy) field names
+              final coords =
+                  (poi['location'] as Map<String, dynamic>?) ??
+                  (poi['coords'] as Map<String, dynamic>?);
+              if (coords == null) return false;
+
+              final lat = coords['latitude'] as num?;
+              final lng = coords['longitude'] as num?;
+              if (lat == null || lng == null) return false;
+
+              // ~1km radius check
+              return (lat - latitude).abs() < 0.01 &&
+                  (lng - longitude).abs() < 0.01;
+            }).toList();
 
         if (nearbyPOIs.isNotEmpty) {
           context['nearbyPOIs'] = nearbyPOIs;

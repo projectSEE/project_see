@@ -29,7 +29,7 @@ class CameraPreviewWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(0),
           child: CameraPreview(controller),
         ),
-        
+
         // Obstacle overlay
         if (obstacles.isNotEmpty)
           CustomPaint(
@@ -38,7 +38,7 @@ class CameraPreviewWidget extends StatelessWidget {
               previewSize: controller.value.previewSize ?? const Size(480, 640),
             ),
           ),
-        
+
         // Status indicator
         Positioned(
           top: 16,
@@ -59,12 +59,14 @@ class CameraPreviewWidget extends StatelessWidget {
                     height: 10,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.green,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    obstacles.isEmpty ? 'Scanning...' : '${obstacles.length} detected',
+                    obstacles.isEmpty
+                        ? 'Scanning...'
+                        : '${obstacles.length} detected',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -86,10 +88,7 @@ class ObstacleOverlayPainter extends CustomPainter {
   final List<DetectedObstacle> obstacles;
   final Size previewSize;
 
-  ObstacleOverlayPainter({
-    required this.obstacles,
-    required this.previewSize,
-  });
+  ObstacleOverlayPainter({required this.obstacles, required this.previewSize});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -104,10 +103,11 @@ class ObstacleOverlayPainter extends CustomPainter {
         boxColor = Colors.green;
       }
 
-      final paint = Paint()
-        ..color = boxColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0;
+      final paint =
+          Paint()
+            ..color = boxColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.0;
 
       // Scale bounding box to screen size
       final scaleX = size.width / previewSize.height;
@@ -127,16 +127,15 @@ class ObstacleOverlayPainter extends CustomPainter {
       );
 
       // Draw label background
-      final labelPaint = Paint()
-        ..color = boxColor.withAlpha(200);
-      
+      final labelPaint = Paint()..color = boxColor.withAlpha(200);
+
       final labelRect = Rect.fromLTWH(
         scaledRect.left,
         scaledRect.top - 28,
         scaledRect.width.clamp(80, 200),
         26,
       );
-      
+
       canvas.drawRRect(
         RRect.fromRectAndRadius(labelRect, const Radius.circular(4)),
         labelPaint,
@@ -155,10 +154,7 @@ class ObstacleOverlayPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       textPainter.layout(maxWidth: labelRect.width - 8);
-      textPainter.paint(
-        canvas,
-        Offset(labelRect.left + 4, labelRect.top + 4),
-      );
+      textPainter.paint(canvas, Offset(labelRect.left + 4, labelRect.top + 4));
     }
   }
 

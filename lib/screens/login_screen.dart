@@ -4,16 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../services/firestore_service.dart';
+import '../core/localization/app_localizations.dart';
+import '../core/services/language_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool isNewGoogleUser;
   final User? googleUser;
 
-  const LoginScreen({
-    super.key,
-    this.isNewGoogleUser = false,
-    this.googleUser,
-  });
+  const LoginScreen({super.key, this.isNewGoogleUser = false, this.googleUser});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -23,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
   final _formKey = GlobalKey<FormState>();
+  final LanguageNotifier _langNotifier = LanguageNotifier();
 
   // ─── Controllers ─────────────────────────────────
   final _emailController = TextEditingController();
@@ -48,10 +47,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    
+    _langNotifier.addListener(_onLangChanged);
+
     // Initialize Google Sign-In once at startup
     _initGoogleSignIn();
-    
+
     // If this is a new Google user, go straight to Google registration
     if (widget.isNewGoogleUser && widget.googleUser != null) {
       _currentPage = 'googleRegister';
@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ─── Google Sign-In Initialization ───────────────
-  
+
   // Web client ID from google-services.json (client_type: 3)
   static const String _webClientId =
       '777852765437-v0nv168rtu25i0q2ope14iufd3991bus.apps.googleusercontent.com';
@@ -78,14 +78,16 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _initGoogleSignIn() async {
     try {
       final googleSignIn = GoogleSignIn.instance;
-      await googleSignIn.initialize(
-        serverClientId: _webClientId,
-      );
+      await googleSignIn.initialize(serverClientId: _webClientId);
       _googleSignInInitialized = true;
       debugPrint('✅ Google Sign-In initialized successfully');
     } catch (e) {
       debugPrint('❌ Google Sign-In initialization failed: $e');
     }
+  }
+
+  void _onLangChanged() {
+    if (mounted) setState(() {});
   }
 
   // ─── Validators ──────────────────────────────────
@@ -110,7 +112,9 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Password is required';
     if (value.length < 6) return 'Password must be at least 6 characters';
-    if (!RegExp(r'[A-Z]').hasMatch(value)) return 'Include at least 1 uppercase letter';
+    if (!RegExp(r'[A-Z]').hasMatch(value)) {
+      return 'Include at least 1 uppercase letter';
+    }
     if (!RegExp(r'[0-9]').hasMatch(value)) return 'Include at least 1 number';
     return null;
   }
@@ -122,7 +126,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _validatePhone(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Phone number is required';
+    if (value == null || value.trim().isEmpty) {
+      return 'Phone number is required';
+    }
     final cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
     if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(cleaned)) {
       return 'Enter a valid phone number (8-15 digits)';
@@ -131,13 +137,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _validateEmergencyName(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Emergency contact name is required';
+    if (value == null || value.trim().isEmpty) {
+      return 'Emergency contact name is required';
+    }
     if (value.trim().length < 2) return 'Name must be at least 2 characters';
     return null;
   }
 
   String? _validateEmergencyPhone(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Emergency contact phone is required';
+    if (value == null || value.trim().isEmpty) {
+      return 'Emergency contact phone is required';
+    }
     final cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
     if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(cleaned)) {
       return 'Enter a valid phone number (8-15 digits)';
@@ -165,16 +175,17 @@ class _LoginScreenState extends State<LoginScreen> {
       // 2. Update display name
       await cred.user?.updateDisplayName(_fullNameController.text.trim());
 
-      // 3. Save profile to Firestore (keyed by full name)
-      await _firestoreService.updateUserProfile(_fullNameController.text.trim(), {
-        'fullName': _fullNameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'emergencyContactName': _emergencyNameController.text.trim(),
-        'emergencyContactPhone': _emergencyPhoneController.text.trim(),
-        'uid': cred.user!.uid,
-        'createdAt': DateTime.now().toIso8601String(),
-      });
+      // 3. Save profile to Firestore (keyed by Firebase UID)
+      await _firestoreService
+          .updateUserProfile(cred.user!.uid, <String, dynamic>{
+            'fullName': _fullNameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'phone': _phoneController.text.trim(),
+            'emergencyContactName': _emergencyNameController.text.trim(),
+            'emergencyContactPhone': _emergencyPhoneController.text.trim(),
+            'uid': cred.user!.uid,
+            'createdAt': DateTime.now().toIso8601String(),
+          });
 
       // 4. Send verification email
       await cred.user?.sendEmailVerification();
@@ -230,7 +241,6 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         return;
       }
-      // Verified → userChanges() in main.dart navigates to HomeScreen
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = e.message ?? 'Authentication failed');
     } catch (e) {
@@ -248,7 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
       await _auth.currentUser?.sendEmailVerification();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification email resent! Check your inbox.')),
+          const SnackBar(
+            content: Text('Verification email resent! Check your inbox.'),
+          ),
         );
       }
     } catch (e) {
@@ -270,15 +282,19 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user == null || !user.emailVerified) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Email not verified yet. Check your inbox and click the link.')),
+            const SnackBar(
+              content: Text(
+                'Email not verified yet. Check your inbox and click the link.',
+              ),
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -302,8 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       debugPrint('🔐 Starting Google Sign-In authenticate()...');
       final googleSignIn = GoogleSignIn.instance;
-      final GoogleSignInAccount? googleUser =
-          await googleSignIn.authenticate();
+      final GoogleSignInAccount? googleUser = await googleSignIn.authenticate();
 
       if (googleUser == null) {
         debugPrint('⚠️ Google Sign-In returned null (user cancelled)');
@@ -316,11 +331,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final idToken = googleUser.authentication.idToken;
       if (idToken == null) {
-        debugPrint('❌ ID token is null! Check SHA-1 fingerprint in Firebase Console.');
+        debugPrint(
+          '❌ ID token is null! Check SHA-1 fingerprint in Firebase Console.',
+        );
         if (mounted) {
-          setState(() => _errorMessage =
-              'Google Sign-In failed: Could not get authentication token. '
-              'Please ensure your SHA-1 fingerprint is registered in Firebase Console.');
+          setState(
+            () =>
+                _errorMessage =
+                    'Google Sign-In failed: Could not get authentication token. '
+                    'Please ensure your SHA-1 fingerprint is registered in Firebase Console.',
+          );
         }
         return;
       }
@@ -442,6 +462,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _langNotifier.removeListener(_onLangChanged);
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -458,41 +479,45 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations(_langNotifier.languageCode);
     String title;
     switch (_currentPage) {
       case 'register':
-        title = 'Create Account';
+        title = strings.get('createAccount');
         break;
       case 'googleRegister':
         title = 'Complete Your Profile';
         break;
       case 'verification':
-        title = 'Verify Your Email';
+        title = strings.get('verifyEmail');
         break;
       case 'resetPassword':
-        title = 'Reset Password';
+        title = strings.get('resetPasswordTitle');
         break;
       default:
-        title = 'Login';
+        title = strings.get('login');
     }
 
-    final showBackButton = _currentPage == 'register' || _currentPage == 'resetPassword';
+    final showBackButton =
+        _currentPage == 'register' || _currentPage == 'resetPassword';
 
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
         centerTitle: true,
-        leading: showBackButton
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() {
-                  _currentPage = 'login';
-                  _isLogin = true;
-                  _errorMessage = null;
-                  _resetEmailSent = false;
-                }),
-              )
-            : null,
+        leading:
+            showBackButton
+                ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed:
+                      () => setState(() {
+                        _currentPage = 'login';
+                        _isLogin = true;
+                        _errorMessage = null;
+                        _resetEmailSent = false;
+                      }),
+                )
+                : null,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -504,23 +529,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildCurrentPage() {
+    final strings = AppLocalizations(_langNotifier.languageCode);
     switch (_currentPage) {
       case 'register':
-        return _buildRegistrationForm();
+        return _buildRegistrationForm(strings);
       case 'googleRegister':
         return _buildGoogleRegistrationForm();
       case 'verification':
-        return _buildVerificationCard();
+        return _buildVerificationCard(strings);
       case 'resetPassword':
-        return _buildResetPasswordPage();
+        return _buildResetPasswordPage(strings);
       default:
-        return _buildLoginForm();
+        return _buildLoginForm(strings);
     }
   }
 
   // ─── Login Form ──────────────────────────────────
 
-  Widget _buildLoginForm() {
+  Widget _buildLoginForm(AppLocalizations strings) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -530,10 +556,10 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_errorMessage != null) _buildErrorBanner(),
         TextField(
           controller: _emailController,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.email),
+          decoration: InputDecoration(
+            labelText: strings.get('email'),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.email),
           ),
           keyboardType: TextInputType.emailAddress,
           autocorrect: false,
@@ -542,12 +568,16 @@ class _LoginScreenState extends State<LoginScreen> {
         TextField(
           controller: _passwordController,
           decoration: InputDecoration(
-            labelText: 'Password',
+            labelText: strings.get('password'),
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.lock),
             suffixIcon: IconButton(
-              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              tooltip: 'Toggle password visibility',
+              onPressed:
+                  () => setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
           obscureText: _obscurePassword,
@@ -560,54 +590,70 @@ class _LoginScreenState extends State<LoginScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ElevatedButton(
-                onPressed: _submitLogin,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              Semantics(
+                button: true,
+                label: strings.get('signIn'),
+                child: ElevatedButton(
+                  onPressed: _submitLogin,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    strings.get('signIn'),
+                    style: const TextStyle(fontSize: 18),
+                  ),
                 ),
-                child: const Text('Sign In', style: TextStyle(fontSize: 18)),
               ),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () => setState(() {
-                  _currentPage = 'register';
-                  _errorMessage = null;
-                }),
-                child: const Text(
-                  'Don\'t have an account? Register here',
-                  style: TextStyle(fontSize: 16),
+                onPressed:
+                    () => setState(() {
+                      _currentPage = 'register';
+                      _errorMessage = null;
+                    }),
+                child: Text(
+                  strings.get('dontHaveAccountRegister'),
+                  style: const TextStyle(fontSize: 16),
                 ),
               ),
               TextButton(
-                onPressed: () => setState(() {
-                  _currentPage = 'resetPassword';
-                  _errorMessage = null;
-                  _resetEmailSent = false;
-                }),
-                child: const Text(
-                  'Forgot Password? Reset Here',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                onPressed:
+                    () => setState(() {
+                      _currentPage = 'resetPassword';
+                      _errorMessage = null;
+                      _resetEmailSent = false;
+                    }),
+                child: Text(
+                  strings.get('forgotPasswordResetHere'),
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.0),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
                 child: Row(
                   children: [
-                    Expanded(child: Divider()),
+                    const Expanded(child: Divider()),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text('OR'),
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(strings.get('or')),
                     ),
-                    Expanded(child: Divider()),
+                    const Expanded(child: Divider()),
                   ],
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: _signInWithGoogle,
-                icon: const Icon(Icons.g_mobiledata, size: 36),
-                label: const Text('Continue with Google', style: TextStyle(fontSize: 18)),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              Semantics(
+                button: true,
+                label: strings.get('continueWithGoogle'),
+                child: OutlinedButton.icon(
+                  onPressed: _signInWithGoogle,
+                  icon: const Icon(Icons.g_mobiledata, size: 36),
+                  label: Text(
+                    strings.get('continueWithGoogle'),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
             ],
@@ -618,23 +664,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ─── Registration Form ───────────────────────────
 
-  Widget _buildRegistrationForm() {
+  Widget _buildRegistrationForm(AppLocalizations strings) {
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header
-          const Icon(Icons.person_add_outlined, size: 60, color: Colors.blueAccent),
+          const Icon(
+            Icons.person_add_outlined,
+            size: 60,
+            color: Colors.blueAccent,
+          ),
           const SizedBox(height: 16),
-          const Text(
-            'Create Your Account',
+          Text(
+            strings.get('createYourAccount'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'Fill in your details to get started',
+            strings.get('fillInDetails'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
@@ -643,18 +693,18 @@ class _LoginScreenState extends State<LoginScreen> {
           if (_errorMessage != null) _buildErrorBanner(),
 
           // ── Personal Info Section ──
-          _buildSectionHeader('Personal Information', Icons.person),
+          _buildSectionHeader(strings.get('personalInfo'), Icons.person),
           const SizedBox(height: 12),
 
           // Full Name
           TextFormField(
             controller: _fullNameController,
             validator: _validateFullName,
-            decoration: const InputDecoration(
-              labelText: 'Full Name *',
-              hintText: 'e.g. John Doe',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.badge_outlined),
+            decoration: InputDecoration(
+              labelText: strings.get('fullNameRequired'),
+              hintText: strings.get('nameHint'),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.badge_outlined),
             ),
             textCapitalization: TextCapitalization.words,
             autocorrect: false,
@@ -665,11 +715,11 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _emailController,
             validator: _validateEmail,
-            decoration: const InputDecoration(
-              labelText: 'Email Address *',
-              hintText: 'e.g. john@example.com',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.email_outlined),
+            decoration: InputDecoration(
+              labelText: strings.get('emailRequired'),
+              hintText: strings.get('emailHint'),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.email_outlined),
             ),
             keyboardType: TextInputType.emailAddress,
             autocorrect: false,
@@ -680,11 +730,11 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _phoneController,
             validator: _validatePhone,
-            decoration: const InputDecoration(
-              labelText: 'Phone Number *',
-              hintText: 'e.g. +60123456789',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.phone_outlined),
+            decoration: InputDecoration(
+              labelText: strings.get('phoneRequired'),
+              hintText: strings.get('phoneHint'),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.phone_outlined),
             ),
             keyboardType: TextInputType.phone,
             inputFormatters: [
@@ -694,7 +744,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 24),
 
           // ── Password Section ──
-          _buildSectionHeader('Set Password', Icons.lock_outline),
+          _buildSectionHeader(strings.get('setPassword'), Icons.lock_outline),
           const SizedBox(height: 12),
 
           // Password
@@ -702,13 +752,17 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _passwordController,
             validator: _validatePassword,
             decoration: InputDecoration(
-              labelText: 'Password *',
-              hintText: 'Min 6 chars, 1 uppercase, 1 number',
+              labelText: strings.get('passwordRequired'),
+              hintText: strings.get('passwordHint'),
               border: const OutlineInputBorder(),
               prefixIcon: const Icon(Icons.lock_outlined),
               suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                ),
+                tooltip: 'Toggle password visibility',
+                onPressed:
+                    () => setState(() => _obscurePassword = !_obscurePassword),
               ),
             ),
             obscureText: _obscurePassword,
@@ -721,12 +775,16 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _confirmPasswordController,
             validator: _validateConfirmPassword,
             decoration: InputDecoration(
-              labelText: 'Confirm Password *',
+              labelText: strings.get('confirmPasswordRequired'),
               border: const OutlineInputBorder(),
               prefixIcon: const Icon(Icons.lock_reset),
               suffixIcon: IconButton(
-                icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                icon: Icon(
+                  _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                ),
+                tooltip: 'Toggle password visibility',
+                onPressed:
+                    () => setState(() => _obscureConfirm = !_obscureConfirm),
               ),
             ),
             obscureText: _obscureConfirm,
@@ -735,10 +793,13 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 24),
 
           // ── Emergency Contact Section ──
-          _buildSectionHeader('Emergency Contact', Icons.emergency_outlined),
+          _buildSectionHeader(
+            strings.get('emergencyContact'),
+            Icons.emergency_outlined,
+          ),
           const SizedBox(height: 4),
           Text(
-            'This person will be contacted in case of emergencies detected by the app.',
+            strings.get('emergencyContactDesc'),
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 12),
@@ -747,11 +808,11 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _emergencyNameController,
             validator: _validateEmergencyName,
-            decoration: const InputDecoration(
-              labelText: 'Emergency Contact Name *',
-              hintText: 'e.g. Jane Doe',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.contact_emergency_outlined),
+            decoration: InputDecoration(
+              labelText: strings.get('emergencyContactNameRequired'),
+              hintText: strings.get('nameHint'),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.contact_emergency_outlined),
             ),
             textCapitalization: TextCapitalization.words,
             autocorrect: false,
@@ -762,11 +823,11 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _emergencyPhoneController,
             validator: _validateEmergencyPhone,
-            decoration: const InputDecoration(
-              labelText: 'Emergency Contact Phone *',
-              hintText: 'e.g. +60198765432',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.phone_callback_outlined),
+            decoration: InputDecoration(
+              labelText: strings.get('emergencyContactPhoneRequired'),
+              hintText: strings.get('emergencyPhoneHint'),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.phone_callback_outlined),
             ),
             keyboardType: TextInputType.phone,
             inputFormatters: [
@@ -779,26 +840,34 @@ class _LoginScreenState extends State<LoginScreen> {
           if (_isLoading)
             const Center(child: CircularProgressIndicator())
           else
-            ElevatedButton(
-              onPressed: _submitRegistration,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
+            Semantics(
+              button: true,
+              label: strings.get('createAccount'),
+              child: ElevatedButton(
+                onPressed: _submitRegistration,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(
+                  strings.get('createAccount'),
+                  style: const TextStyle(fontSize: 18),
+                ),
               ),
-              child: const Text('Create Account', style: TextStyle(fontSize: 18)),
             ),
 
           const SizedBox(height: 16),
           TextButton(
-            onPressed: () => setState(() {
-              _currentPage = 'login';
-              _isLogin = true;
-              _errorMessage = null;
-            }),
-            child: const Text(
-              'Already have an account? Sign in here',
-              style: TextStyle(fontSize: 16),
+            onPressed:
+                () => setState(() {
+                  _currentPage = 'login';
+                  _isLogin = true;
+                  _errorMessage = null;
+                }),
+            child: Text(
+              strings.get('alreadyHaveAccountSignIn'),
+              style: const TextStyle(fontSize: 16),
             ),
           ),
         ],
@@ -808,7 +877,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ─── Verification Card ───────────────────────────
 
-  Widget _buildVerificationCard() {
+  Widget _buildVerificationCard(AppLocalizations strings) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -818,17 +887,20 @@ class _LoginScreenState extends State<LoginScreen> {
             color: Colors.blue.shade50,
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.mark_email_unread_outlined,
-              size: 80, color: Colors.blue.shade600),
+          child: Icon(
+            Icons.mark_email_unread_outlined,
+            size: 80,
+            color: Colors.blue.shade600,
+          ),
         ),
         const SizedBox(height: 32),
-        const Text(
-          'Check Your Email',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Text(
+          strings.get('checkYourEmail'),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
         Text(
-          'We sent a verification link to\n$_verificationEmail\n\nPlease click the link in the email to verify your account.',
+          '${strings.get('verificationLinkSent')}\n$_verificationEmail\n\n${strings.get('clickLinkToVerify')}',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 16, height: 1.5),
         ),
@@ -839,25 +911,37 @@ class _LoginScreenState extends State<LoginScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ElevatedButton.icon(
-                onPressed: _checkVerification,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text("I've Verified My Email",
-                    style: TextStyle(fontSize: 18)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
+              Semantics(
+                button: true,
+                label: strings.get('iveVerifiedMyEmail'),
+                child: ElevatedButton.icon(
+                  onPressed: _checkVerification,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: Text(
+                    strings.get('iveVerifiedMyEmail'),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _resendVerificationEmail,
-                icon: const Icon(Icons.email_outlined),
-                label: const Text('Resend Verification Email',
-                    style: TextStyle(fontSize: 16)),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+              Semantics(
+                button: true,
+                label: strings.get('resendVerificationEmail'),
+                child: OutlinedButton.icon(
+                  onPressed: _resendVerificationEmail,
+                  icon: const Icon(Icons.email_outlined),
+                  label: Text(
+                    strings.get('resendVerificationEmail'),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -869,7 +953,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     _errorMessage = null;
                   });
                 },
-                child: const Text('Back to Login', style: TextStyle(fontSize: 16)),
+                child: Text(
+                  strings.get('backToLogin'),
+                  style: const TextStyle(fontSize: 16),
+                ),
               ),
             ],
           ),
@@ -879,7 +966,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ─── Reset Password Page ──────────────────────────
 
-  Widget _buildResetPasswordPage() {
+  Widget _buildResetPasswordPage(AppLocalizations strings) {
     // After the reset email is sent, show a confirmation card
     if (_resetEmailSent) {
       return Column(
@@ -891,17 +978,20 @@ class _LoginScreenState extends State<LoginScreen> {
               color: Colors.orange.shade50,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.mark_email_read_outlined,
-                size: 80, color: Colors.orange.shade600),
+            child: Icon(
+              Icons.mark_email_read_outlined,
+              size: 80,
+              color: Colors.orange.shade600,
+            ),
           ),
           const SizedBox(height: 32),
-          const Text(
-            'Reset Link Sent!',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          Text(
+            strings.get('resetLinkSent'),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           Text(
-            'We sent a password reset link to\n${_emailController.text.trim()}\n\nPlease check your inbox and click the link to reset your password.',
+            '${strings.get('weSentResetLink')}\n${_emailController.text.trim()}\n\n${strings.get('resetLinkSentDesc')}',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 16, height: 1.5),
           ),
@@ -909,18 +999,25 @@ class _LoginScreenState extends State<LoginScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ElevatedButton.icon(
-                onPressed: () => setState(() {
-                  _currentPage = 'login';
-                  _resetEmailSent = false;
-                  _errorMessage = null;
-                  _passwordController.clear();
-                }),
-                icon: const Icon(Icons.login),
-                label: const Text('Back to Login',
-                    style: TextStyle(fontSize: 18)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              Semantics(
+                button: true,
+                label: strings.get('backToLogin'),
+                child: ElevatedButton.icon(
+                  onPressed:
+                      () => setState(() {
+                        _currentPage = 'login';
+                        _resetEmailSent = false;
+                        _errorMessage = null;
+                        _passwordController.clear();
+                      }),
+                  icon: const Icon(Icons.login),
+                  label: Text(
+                    strings.get('backToLogin'),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -929,8 +1026,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   setState(() => _resetEmailSent = false);
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Try a Different Email',
-                    style: TextStyle(fontSize: 16)),
+                label: Text(
+                  strings.get('tryDifferentEmail'),
+                  style: const TextStyle(fontSize: 16),
+                ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -955,26 +1054,30 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Icon(Icons.lock_reset, size: 80, color: Colors.blue.shade600),
         ),
         const SizedBox(height: 32),
-        const Text(
-          'Forgot Your Password?',
+        Text(
+          strings.get('forgotYourPassword'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Text(
-          'Enter the email address associated with your account and we\'ll send you a link to reset your password.',
+          strings.get('forgotYourPasswordDesc'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: 24),
         if (_errorMessage != null) _buildErrorBanner(),
         TextField(
           controller: _emailController,
-          decoration: const InputDecoration(
-            labelText: 'Email Address',
-            hintText: 'e.g. john@example.com',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.email_outlined),
+          decoration: InputDecoration(
+            labelText: strings.get('emailAddress'),
+            hintText: strings.get('emailHint'),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.email_outlined),
           ),
           keyboardType: TextInputType.emailAddress,
           autocorrect: false,
@@ -983,14 +1086,21 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_isLoading)
           const Center(child: CircularProgressIndicator())
         else
-          ElevatedButton(
-            onPressed: _sendResetEmail,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.blueAccent,
-              foregroundColor: Colors.white,
+          Semantics(
+            button: true,
+            label: strings.get('sendResetLink'),
+            child: ElevatedButton(
+              onPressed: _sendResetEmail,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                strings.get('sendResetLink'),
+                style: const TextStyle(fontSize: 18),
+              ),
             ),
-            child: const Text('Send Reset Link', style: TextStyle(fontSize: 18)),
           ),
       ],
     );
@@ -1006,7 +1116,11 @@ class _LoginScreenState extends State<LoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header
-          const Icon(Icons.person_add_outlined, size: 60, color: Colors.blueAccent),
+          const Icon(
+            Icons.person_add_outlined,
+            size: 60,
+            color: Colors.blueAccent,
+          ),
           const SizedBox(height: 16),
           const Text(
             'Complete Your Profile',
@@ -1128,7 +1242,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Complete Registration', style: TextStyle(fontSize: 18)),
+              child: const Text(
+                'Complete Registration',
+                style: TextStyle(fontSize: 18),
+              ),
             ),
 
           const SizedBox(height: 16),

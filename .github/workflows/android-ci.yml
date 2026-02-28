@@ -15,8 +15,6 @@ jobs:
       # 1. Get the code
       - name: Checkout Code
         uses: actions/checkout@v3
-        with:
-          submodules: false
 
       # 2. Set up Java (Required for Android)
       - name: Set up JDK 17
@@ -60,3 +58,4 @@ jobs:
           token: ${{ secrets.FIREBASE_TOKEN }}
           groups: beta_testers
           file: build/app/outputs/flutter-apk/app-release.apk
+          debug: true

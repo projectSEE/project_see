@@ -20,7 +20,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   final LocationAwarenessService _awarenessService = LocationAwarenessService();
   final TTSService _ttsService = TTSService();
   final TextEditingController _searchController = TextEditingController();
-  
+
   GoogleMapController? _mapController;
   Position? _currentPosition;
   List<PlaceResult> _searchResults = [];
@@ -43,7 +43,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _initialize() async {
     await _navService.initialize();
     await _ttsService.initialize();
-    
+
     // Request location permission first
     final permissionGranted = await _requestLocationPermission();
     if (!permissionGranted) {
@@ -52,21 +52,28 @@ class _NavigationScreenState extends State<NavigationScreen> {
       });
       return;
     }
-    
+
     _currentPosition = await _navService.getCurrentLocation();
     if (_currentPosition != null) {
       setState(() {
-        _markers.add(Marker(
-          markerId: const MarkerId('current'),
-          position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-          infoWindow: const InfoWindow(title: 'Your Location'),
-        ));
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('current'),
+            position: LatLng(
+              _currentPosition!.latitude,
+              _currentPosition!.longitude,
+            ),
+            infoWindow: const InfoWindow(title: 'Your Location'),
+          ),
+        );
       });
     } else {
       setState(() {
         _locationError = 'Unable to get current location';
       });
-      await _ttsService.speak('Unable to get current location. Please check if location services are enabled.');
+      await _ttsService.speak(
+        'Unable to get current location. Please check if location services are enabled.',
+      );
       return;
     }
 
@@ -74,17 +81,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _navService.onStepChanged = (step) {
       setState(() {});
     };
-    
+
     _navService.onArrived = (message) {
       _showArrivedDialog(message);
     };
-    
+
     _navService.onPositionUpdate = (position) {
       setState(() {
         _currentPosition = position;
       });
     };
-    
+
     // Set up awareness service
     await _awarenessService.initialize();
     _awarenessService.onPOIsFound = (pois) {
@@ -93,84 +100,95 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _awarenessService.onAnnouncement = (text) {
       setState(() => _lastAnnouncement = text);
     };
-    
-    await _ttsService.speak('Navigation screen is open. Enter a destination or start explore mode.');
+
+    await _ttsService.speak(
+      'Navigation screen is open. Enter a destination or start explore mode.',
+    );
   }
 
   /// Request location permission with user-friendly messages
   Future<bool> _requestLocationPermission() async {
     await _ttsService.speak('Requesting location permission');
-    
+
     // Check current permission status
     var status = await Permission.locationWhenInUse.status;
     debugPrint('📍 Location permission status: $status');
-    
+
     if (status.isGranted) {
       setState(() => _hasLocationPermission = true);
       return true;
     }
-    
+
     if (status.isDenied) {
       // Request permission
       status = await Permission.locationWhenInUse.request();
       debugPrint('📍 Permission after request: $status');
     }
-    
+
     if (status.isGranted) {
       setState(() => _hasLocationPermission = true);
       await _ttsService.speak('Location permission granted');
       return true;
     }
-    
+
     if (status.isPermanentlyDenied) {
-      await _ttsService.speak('Location permission permanently denied. Please enable it in settings.');
+      await _ttsService.speak(
+        'Location permission permanently denied. Please enable it in settings.',
+      );
       // Show dialog to open settings
       if (mounted) {
         showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Location Permission Required'),
-            content: const Text('Please enable location permission in settings to use navigation.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Location Permission Required'),
+                content: const Text(
+                  'Please enable location permission in settings to use navigation.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      openAppSettings();
+                    },
+                    child: const Text('Open Settings'),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  openAppSettings();
-                },
-                child: const Text('Open Settings'),
-              ),
-            ],
-          ),
         );
       }
       return false;
     }
-    
-    await _ttsService.speak('Location permission denied. Navigation is unavailable.');
+
+    await _ttsService.speak(
+      'Location permission denied. Navigation is unavailable.',
+    );
     return false;
   }
 
   Future<void> _searchPlaces(String query) async {
     if (query.isEmpty) return;
-    
+
     setState(() => _isSearching = true);
     await _ttsService.speak('Searching for $query');
-    
+
     final results = await _navService.searchPlaces(query);
-    
+
     setState(() {
       _searchResults = results;
       _isSearching = false;
     });
-    
+
     if (results.isEmpty) {
       await _ttsService.speak('No results found');
     } else {
-      await _ttsService.speak('Found ${results.length} results. ${results.first.name}');
+      await _ttsService.speak(
+        'Found ${results.length} results. ${results.first.name}',
+      );
     }
   }
 
@@ -179,48 +197,56 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _selectedDestination = place;
       _searchResults = [];
       _isLoadingRoute = true;
-      
+
       // Add destination marker
-      _markers.add(Marker(
-        markerId: const MarkerId('destination'),
-        position: LatLng(place.lat, place.lng),
-        infoWindow: InfoWindow(title: place.name),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ));
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: LatLng(place.lat, place.lng),
+          infoWindow: InfoWindow(title: place.name),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+        ),
+      );
     });
-    
+
     await _ttsService.speak('Selected ${place.name}. Getting route.');
-    
+
     // Get route
     if (_currentPosition != null) {
       final steps = await _navService.getRoute(
-        _currentPosition!.latitude, _currentPosition!.longitude,
-        place.lat, place.lng,
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+        place.lat,
+        place.lng,
       );
-      
+
       if (steps.isNotEmpty) {
         // Draw route polyline
-        final points = steps.map((s) => LatLng(s.startLat, s.startLng)).toList();
+        final points =
+            steps.map((s) => LatLng(s.startLat, s.startLng)).toList();
         points.add(LatLng(steps.last.endLat, steps.last.endLng));
-        
+
         setState(() {
-          _polylines.add(Polyline(
-            polylineId: const PolylineId('route'),
-            points: points,
-            color: Colors.blue,
-            width: 5,
-          ));
+          _polylines.add(
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: points,
+              color: Colors.black,
+              width: 5,
+            ),
+          );
           _isLoadingRoute = false;
         });
-        
+
         // Zoom to fit route
-        _mapController?.animateCamera(CameraUpdate.newLatLngBounds(
-          _getBounds(points),
-          50,
-        ));
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngBounds(_getBounds(points), 50),
+        );
       }
     }
-    
+
     setState(() => _isLoadingRoute = false);
   }
 
@@ -229,14 +255,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
     double maxLat = points.first.latitude;
     double minLng = points.first.longitude;
     double maxLng = points.first.longitude;
-    
+
     for (final point in points) {
       if (point.latitude < minLat) minLat = point.latitude;
       if (point.latitude > maxLat) maxLat = point.latitude;
       if (point.longitude < minLng) minLng = point.longitude;
       if (point.longitude > maxLng) maxLng = point.longitude;
     }
-    
+
     return LatLngBounds(
       southwest: LatLng(minLat, minLng),
       northeast: LatLng(maxLat, maxLng),
@@ -262,19 +288,20 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void _showArrivedDialog(String message) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('🎉 Arrived'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _stopNavigation();
-            },
-            child: const Text('OK'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('🎉 Arrived'),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _stopNavigation();
+                },
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -283,7 +310,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Navigation'),
-        backgroundColor: Colors.blue[700],
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         actions: [
           if (_navService.isNavigating)
@@ -299,39 +326,34 @@ class _NavigationScreenState extends State<NavigationScreen> {
           // Explore mode button
           if (!_navService.isNavigating && !_awarenessService.isExploring)
             _buildExploreButton(),
-          
+
           // Explore mode panel
-          if (_awarenessService.isExploring)
-            _buildExplorePanel(),
-          
+          if (_awarenessService.isExploring) _buildExplorePanel(),
+
           // Search bar (only when not exploring)
-          if (!_awarenessService.isExploring)
-            _buildSearchBar(),
-          
+          if (!_awarenessService.isExploring) _buildSearchBar(),
+
           // Search results
           if (_searchResults.isNotEmpty) _buildSearchResults(),
-          
+
           // Map
-          Expanded(
-            child: _buildMap(),
-          ),
-          
+          Expanded(child: _buildMap()),
+
           // Navigation controls
           if (_selectedDestination != null && !_navService.isNavigating)
             _buildStartButton(),
-          
-          if (_navService.isNavigating)
-            _buildNavigationPanel(),
+
+          if (_navService.isNavigating) _buildNavigationPanel(),
         ],
       ),
     );
   }
-  
+
   Widget _buildExploreButton() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.orange[50],
+      color: const Color(0xFFF5F5F5),
       child: ElevatedButton.icon(
         onPressed: () {
           _awarenessService.startExploring();
@@ -340,19 +362,19 @@ class _NavigationScreenState extends State<NavigationScreen> {
         icon: const Icon(Icons.explore),
         label: const Text('Start Explore Mode — auto-announce surroundings'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange[700],
+          backgroundColor: Colors.black,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
     );
   }
-  
+
   Widget _buildExplorePanel() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange[700],
+        color: Colors.black,
         boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
       ),
       child: Column(
@@ -366,7 +388,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
               const Expanded(
                 child: Text(
                   'Explore Mode',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               ElevatedButton.icon(
@@ -378,13 +404,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 label: const Text('Stop'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: Colors.orange[700],
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ],
           ),
-          
+
           // Last announcement
           if (_lastAnnouncement.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -394,7 +423,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               textAlign: TextAlign.center,
             ),
           ],
-          
+
           // Nearby POIs count
           const SizedBox(height: 8),
           Text(
@@ -429,15 +458,26 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ),
           const SizedBox(width: 8),
           ElevatedButton(
-            onPressed: _isSearching ? null : () => _searchPlaces(_searchController.text),
+            onPressed:
+                _isSearching
+                    ? null
+                    : () => _searchPlaces(_searchController.text),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[700],
+              backgroundColor: Colors.black,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
-            child: _isSearching
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('Search'),
+            child:
+                _isSearching
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : const Text('Search'),
           ),
         ],
       ),
@@ -453,7 +493,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         itemBuilder: (context, index) {
           final place = _searchResults[index];
           return ListTile(
-            leading: const Icon(Icons.place, color: Colors.red),
+            leading: const Icon(Icons.place, color: Colors.black),
             title: Text(place.name),
             subtitle: Text(place.address),
             onTap: () => _selectDestination(place),
@@ -498,7 +538,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ),
       );
     }
-    
+
     if (_currentPosition == null) {
       return const Center(
         child: Column(
@@ -511,7 +551,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ),
       );
     }
-    
+
     return GoogleMap(
       initialCameraPosition: CameraPosition(
         target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
@@ -535,7 +575,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         icon: const Icon(Icons.navigation),
         label: Text('Start navigation to ${_selectedDestination!.name}'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green[700],
+          backgroundColor: Colors.black,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -547,11 +587,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Widget _buildNavigationPanel() {
     final step = _navService.currentStep;
     if (step == null) return const SizedBox.shrink();
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue[700],
+        color: Colors.black,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -560,7 +600,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
           // Current instruction
           Text(
             step.instruction,
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -569,7 +613,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
           const SizedBox(height: 16),
-          
+
           // Control buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -581,10 +625,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 label: const Text('Repeat'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue[700],
+                  foregroundColor: Colors.black,
                 ),
               ),
-              
+
               // Next step button
               ElevatedButton.icon(
                 onPressed: _navService.nextStep,
@@ -592,17 +636,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 label: const Text('Next'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue[700],
+                  foregroundColor: Colors.black,
                 ),
               ),
-              
+
               // Stop button
               ElevatedButton.icon(
                 onPressed: _stopNavigation,
                 icon: const Icon(Icons.stop),
                 label: const Text('Stop'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
                 ),
               ),

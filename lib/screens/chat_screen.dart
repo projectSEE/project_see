@@ -16,6 +16,8 @@ import '../utils/conversation_exporter.dart';
 import '../theme/theme.dart';
 import '../widgets/widgets.dart';
 import '../main.dart';
+import '../core/localization/app_localizations.dart';
+import '../core/services/language_provider.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -35,18 +37,18 @@ class _ChatScreenState extends State<ChatScreen> {
   // Audio utilities for Live mode
   final AudioInput _audioInput = AudioInput();
   final AudioOutput _audioOutput = AudioOutput();
-  
+
   // User identification from Firebase Auth
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? 'anonymous';
-  
+
   // Current conversation topic/session ID
   String _currentTopicId = '';
 
   // Stores chat messages: {role: 'user'|'model', text: '...', imageBytes: Uint8List?}
   final List<Map<String, dynamic>> _messages = [];
-  
+
   bool _isLoading = false;
-  
+
   // Live mode state
   bool _isLiveMode = false;
   bool _isLiveSessionActive = false;
@@ -56,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Text-to-Speech toggle
   bool _ttsEnabled = true;
-  
+
   // Chat history from database
   List<Map<String, dynamic>> _chatHistory = [];
 
@@ -67,6 +69,8 @@ class _ChatScreenState extends State<ChatScreen> {
   // Search query for filtering history
   String _searchQuery = '';
 
+  final LanguageNotifier _langNotifier = LanguageNotifier();
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +78,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _ttsService.initialize();
     _initAudio();
     _initDatabase();
+    _langNotifier.addListener(_onLangChanged);
+    _requestLocationPermission();
     _requestLocationPermission();
   }
 
@@ -105,14 +111,18 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('Error requesting location permission: $e');
     }
   }
-  
+
+  void _onLangChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _initDatabase() async {
     // Cleanup old conversations on app start
     await _firestoreService.cleanupOldConversations(_userId);
     // Load chat history
     await _loadChatHistory();
   }
-  
+
   Future<void> _loadChatHistory() async {
     try {
       // Load topic previews instead of individual messages
@@ -124,13 +134,15 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('Error loading chat history: $e');
     }
   }
-  
+
   /// Load all messages for a specific topic
   Future<void> _loadTopicMessages(String topicId) async {
     try {
-      final grouped = await _firestoreService.getConversationsGroupedByTopic(_userId);
+      final grouped = await _firestoreService.getConversationsGroupedByTopic(
+        _userId,
+      );
       final topicMessages = grouped[topicId] ?? [];
-      
+
       setState(() {
         _messages.clear();
         for (final msg in topicMessages) {
@@ -149,8 +161,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-
-
   Future<void> _initAudio() async {
     await _audioInput.init();
     await _audioOutput.init();
@@ -158,6 +168,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _langNotifier.removeListener(_onLangChanged);
     _disconnectLiveSession();
     _audioInput.dispose();
     _audioOutput.dispose();
@@ -180,7 +191,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _handleSendMessage({String? text}) async {
     final userText = text?.trim() ?? "";
-    
+
     // If no text and no pending image, do nothing
     if (userText.isEmpty && _pendingImage == null) return;
 
@@ -203,12 +214,12 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
     _textController.clear();
-    
+
     // Save user message to database
     await _firestoreService.saveMessage(
-      _userId, 
-      'user', 
-      messageContent, 
+      _userId,
+      'user',
+      messageContent,
       hasImage: imageBytes != null,
       topicId: _currentTopicId,
       imageBytes: imageBytes,
@@ -221,21 +232,29 @@ class _ChatScreenState extends State<ChatScreen> {
       String? userAddress;
       try {
         final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+          ),
         );
         latitude = position.latitude;
         longitude = position.longitude;
-        
+
         // Reverse geocode to get address
         try {
-          final placemarks = await placemarkFromCoordinates(latitude, longitude);
+          final placemarks = await placemarkFromCoordinates(
+            latitude,
+            longitude,
+          );
           if (placemarks.isNotEmpty) {
             final p = placemarks.first;
             final parts = <String>[
               if (p.street != null && p.street!.isNotEmpty) p.street!,
-              if (p.subLocality != null && p.subLocality!.isNotEmpty) p.subLocality!,
+              if (p.subLocality != null && p.subLocality!.isNotEmpty)
+                p.subLocality!,
               if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
-              if (p.administrativeArea != null && p.administrativeArea!.isNotEmpty) p.administrativeArea!,
+              if (p.administrativeArea != null &&
+                  p.administrativeArea!.isNotEmpty)
+                p.administrativeArea!,
               if (p.country != null && p.country!.isNotEmpty) p.country!,
             ];
             userAddress = parts.join(', ');
@@ -247,34 +266,33 @@ class _ChatScreenState extends State<ChatScreen> {
         // Location not available, continue without it
         debugPrint('Location not available: $e');
       }
-      
-      // Build context from database
+
+      // Get user settings for personalized behavior
       final databaseContext = await _firestoreService.buildContextForAI(
-        _userId,
+        _userId, // Assuming _userId is equivalent to user.uid here
         latitude: latitude,
         longitude: longitude,
         userAddress: userAddress,
       );
-      
+
       final response = await _geminiService.sendMessage(
-        messageContent, 
-        imageBytes: imageBytes, 
+        messageContent,
+        imageBytes: imageBytes,
         imageMimeType: imageMimeType,
         databaseContext: databaseContext,
       );
-      
       // Parse and handle POI add markers from the response
       String displayResponse = response;
-      
+
       // Use brace-counting to extract JSON (more reliable than regex)
       int markerIdx = displayResponse.indexOf('ADD_POI:');
       while (markerIdx != -1) {
         debugPrint('🔍 Found ADD_POI marker in response');
-        
+
         // Find the JSON object start
         final jsonStart = displayResponse.indexOf('{', markerIdx + 8);
         if (jsonStart == -1) break;
-        
+
         // Count braces to find the complete JSON object
         int depth = 0;
         int jsonEnd = -1;
@@ -287,19 +305,22 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
         if (jsonEnd == -1) break;
-        
+
         final jsonStr = displayResponse.substring(jsonStart, jsonEnd);
         debugPrint('🔍 Parsing POI JSON: $jsonStr');
-        
+
         // Find full marker bounds (including surrounding {{ }})
         int removeStart = markerIdx;
-        while (removeStart > 0 && displayResponse[removeStart - 1] == '{') removeStart--;
+        while (removeStart > 0 && displayResponse[removeStart - 1] == '{')
+          removeStart--;
         int removeEnd = jsonEnd;
-        while (removeEnd < displayResponse.length && displayResponse[removeEnd] == '}') removeEnd++;
-        
+        while (removeEnd < displayResponse.length &&
+            displayResponse[removeEnd] == '}')
+          removeEnd++;
+
         try {
           final poiJson = json.decode(jsonStr) as Map<String, dynamic>;
-          
+
           if (latitude != null && longitude != null) {
             final saved = await _firestoreService.savePOI(
               name: poiJson['name'] ?? 'Unknown',
@@ -323,38 +344,35 @@ class _ChatScreenState extends State<ChatScreen> {
               debugPrint('❌ savePOI returned false');
             }
           } else {
-            debugPrint('⚠️ Cannot save POI: location is null (lat=$latitude, lng=$longitude)');
+            debugPrint(
+              '⚠️ Cannot save POI: location is null (lat=$latitude, lng=$longitude)',
+            );
           }
         } catch (e) {
           debugPrint('❌ Error parsing POI from response: $e');
         }
-        
+
         // Remove the full marker from displayed text
         final fullMarker = displayResponse.substring(removeStart, removeEnd);
         displayResponse = displayResponse.replaceAll(fullMarker, '').trim();
-        
+
         // Search for more markers
         markerIdx = displayResponse.indexOf('ADD_POI:');
       }
-      
       // Save assistant response to database
       await _firestoreService.saveMessage(
-        _userId, 
-        'assistant', 
+        _userId,
+        'assistant',
         displayResponse,
         topicId: _currentTopicId,
       );
-      
+
       setState(() {
-        _messages.add({
-          'role': 'model',
-          'text': displayResponse,
-        });
+        _messages.add({'role': 'model', 'text': displayResponse});
         _isLoading = false;
       });
       _scrollToBottom();
       _speak(displayResponse);
-      
     } catch (e) {
       setState(() {
         _messages.add({'role': 'model', 'text': "Error: ${e.toString()}"});
@@ -368,10 +386,9 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('TTS: Text-to-Speech disabled, skipping speech');
       return;
     }
-    
+
     await _ttsService.speak(text, force: true, preventDuplicates: false);
   }
-
 
   /// Delete a message at the given index
   void _deleteMessage(int index) {
@@ -390,9 +407,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Export conversation as PDF
   Future<void> _shareConversation() async {
     if (_messages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No messages to export')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No messages to export')));
       return;
     }
     await ConversationExporter.exportAsPdf(_messages);
@@ -403,7 +420,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_searchQuery.isEmpty) return _chatHistory;
     final lowerQuery = _searchQuery.toLowerCase();
     return _chatHistory.where((topic) {
-      final firstMessage = topic['firstMessage']?.toString().toLowerCase() ?? '';
+      final firstMessage =
+          topic['firstMessage']?.toString().toLowerCase() ?? '';
       return firstMessage.contains(lowerQuery);
     }).toList();
   }
@@ -451,7 +469,7 @@ class _ChatScreenState extends State<ChatScreen> {
       });
 
       await _geminiService.connectLive();
-      
+
       // Start listening to responses
       _startListeningToResponses();
 
@@ -460,7 +478,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoading = false;
         _messages.add({
           'role': 'system',
-          'text': '🎙️ Live session connected. Tap the microphone to start speaking.',
+          'text':
+              '🎙️ Live session connected. Tap the microphone to start speaking.',
         });
       });
       _scrollToBottom();
@@ -480,11 +499,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _disconnectLiveSession() async {
     await _responseSubscription?.cancel();
     _responseSubscription = null;
-    
+
     if (_isRecording) {
       await _stopRecording();
     }
-    
+
     await _geminiService.disconnectLive();
     await _audioOutput.stop();
 
@@ -535,20 +554,16 @@ class _ChatScreenState extends State<ChatScreen> {
             if (_isRecording) {
               await _stopRecording();
             }
-            
+
             // Mark AI as speaking and play the audio response
             setState(() {
               _isAiSpeaking = true;
             });
             await _audioOutput.addAudioStream(part.bytes);
-            
           } else if (part is TextPart) {
             // Display text response if any
             setState(() {
-              _messages.add({
-                'role': 'model',
-                'text': part.text,
-              });
+              _messages.add({'role': 'model', 'text': part.text});
             });
             _scrollToBottom();
           }
@@ -598,7 +613,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await _audioOutput.playStream();
       final inputStream = await _audioInput.startRecordingStream();
-      
+
       if (inputStream != null) {
         await for (final data in inputStream) {
           // Stop if no longer recording or AI starts speaking
@@ -609,9 +624,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint("Recording error: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Recording error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Recording error: $e')));
       }
     }
   }
@@ -625,57 +640,72 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations(_langNotifier.languageCode);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Visual Assistant"),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            tooltip: 'Settings & History',
+        leading: Semantics(
+          label: strings.get('back'),
+          button: true,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back, size: 28),
+            tooltip: strings.get('back'),
+            onPressed: () => Navigator.pop(context),
           ),
         ),
         actions: [
           // Text-to-Speech Toggle
-          IconButton(
-            icon: Icon(
-              _ttsEnabled ? Icons.volume_up : Icons.volume_off,
-              color: _ttsEnabled ? AppColors.liveActive : AppColors.textMuted,
+          Semantics(
+            label: strings.get('toggleTts'),
+            button: true,
+            child: IconButton(
+              icon: Icon(
+                _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+                color:
+                    _ttsEnabled
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+              tooltip: strings.get('toggleTts'),
+              onPressed: () async {
+                setState(() {
+                  _ttsEnabled = !_ttsEnabled;
+                });
+                // Stop speaking if TTS was just disabled
+                if (!_ttsEnabled) {
+                  await _ttsService.stop();
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _ttsEnabled
+                          ? strings.get('ttsEnabled')
+                          : strings.get('ttsStopped'),
+                    ),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
             ),
-            onPressed: () async {
-              setState(() {
-                _ttsEnabled = !_ttsEnabled;
-              });
-              // Stop speaking if TTS was just disabled
-              if (!_ttsEnabled) {
-                await _ttsService.stop();
-              }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_ttsEnabled 
-                      ? 'Text-to-Speech enabled' 
-                      : 'Text-to-Speech stopped'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-            tooltip: 'Toggle Text-to-Speech',
           ),
           // Live Mode Toggle
           Row(
             children: [
               Text(
-                _isLiveMode ? 'Live' : 'Normal',
+                _isLiveMode
+                    ? strings.get('liveMode')
+                    : strings.get('normalMode'),
                 style: TextStyle(
-                  color: _isLiveMode ? AppColors.liveActive : AppColors.textMuted,
+                  color: _isLiveMode ? Colors.white : Colors.white70,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Switch(
                 value: _isLiveMode,
                 onChanged: _isLoading ? null : _toggleLiveMode,
-                activeColor: AppColors.liveActive,
-                inactiveThumbColor: AppColors.textMuted,
+                activeColor: Colors.white,
+                inactiveThumbColor: Colors.white70,
               ),
             ],
           ),
@@ -685,11 +715,15 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: _isAiSpeaking ? AppColors.aiSpeaking : AppColors.liveActive,
+                color:
+                    _isAiSpeaking ? AppColors.aiSpeaking : AppColors.liveActive,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (_isAiSpeaking ? AppColors.aiSpeaking : AppColors.liveActive).withValues(alpha: 0.5),
+                    color: (_isAiSpeaking
+                            ? AppColors.aiSpeaking
+                            : AppColors.liveActive)
+                        .withValues(alpha: 0.5),
                     blurRadius: 6,
                     spreadRadius: 2,
                   ),
@@ -707,29 +741,44 @@ class _ChatScreenState extends State<ChatScreen> {
               // Header
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                color: AppColors.primary,
+                color: Theme.of(context).colorScheme.surface,
                 child: Row(
                   children: [
-                    Icon(Icons.settings, color: AppColors.sdg11Yellow, size: 28),
+                    Icon(
+                      Icons.settings,
+                      color: Theme.of(context).colorScheme.onSurface,
+                      size: 28,
+                    ),
                     const SizedBox(width: AppSpacing.md),
                     Text(
-                      'Settings & History',
+                      strings.get('settingsAndHistory'),
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textLight,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ],
                 ),
               ),
-              
+
               // Text-to-Speech Toggle
               SwitchListTile(
-                title: Text('Text-to-Speech', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                title: Text(
+                  strings.get('ttsLabel'),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
                 subtitle: Text(
-                  _ttsEnabled ? 'AI responses will be spoken' : 'Silent mode',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  _ttsEnabled
+                      ? strings.get('ttsEnabledDesc')
+                      : strings.get('ttsSilentMode'),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                 ),
                 value: _ttsEnabled,
                 onChanged: (value) {
@@ -737,47 +786,85 @@ class _ChatScreenState extends State<ChatScreen> {
                     _ttsEnabled = value;
                   });
                 },
-                activeColor: AppColors.liveActive,
+                activeColor: Theme.of(context).colorScheme.onSurface,
                 secondary: Icon(
                   _ttsEnabled ? Icons.volume_up : Icons.volume_off,
-                  color: _ttsEnabled ? AppColors.liveActive : AppColors.textMuted,
+                  color:
+                      _ttsEnabled
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
-              
+
               // Dark Mode Toggle (Immediate Effect)
               SwitchListTile(
-                title: Text('Dark Mode', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                title: Text(
+                  strings.get('darkMode'),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
                 subtitle: Text(
-                  ThemeNotifier().isDarkMode ? 'Dark theme active' : 'Light theme active',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  ThemeNotifier().isDarkMode
+                      ? strings.get('darkThemeActive')
+                      : strings.get('lightThemeActive'),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                 ),
                 value: ThemeNotifier().isDarkMode,
                 onChanged: (value) {
                   ThemeNotifier().setDarkMode(value);
                   setState(() {}); // Refresh UI
                 },
-                activeColor: AppColors.primary,
+                activeColor: Theme.of(context).colorScheme.onSurface,
                 secondary: Icon(
-                  ThemeNotifier().isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                  color: ThemeNotifier().isDarkMode ? AppColors.sdg11Yellow : AppColors.textMuted,
+                  ThemeNotifier().isDarkMode
+                      ? Icons.dark_mode
+                      : Icons.light_mode,
+                  color:
+                      ThemeNotifier().isDarkMode
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
-              
+
               const Divider(),
-              
+
               // Share Conversation Button
               ListTile(
-                leading: Icon(Icons.share, color: AppColors.primary),
-                title: Text('Share Conversation', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                subtitle: Text('Export as text', style: TextStyle(color: AppColors.textSecondary)),
+                leading: Icon(
+                  Icons.share,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                title: Text(
+                  strings.get('shareConversation'),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                subtitle: Text(
+                  strings.get('exportAsText'),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _shareConversation();
                 },
               ),
-              
+
               const Divider(),
-              
+
               // Chat History Header
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
@@ -785,22 +872,27 @@ class _ChatScreenState extends State<ChatScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Chat History (3 days)',
+                      strings.get('chatHistory'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.sdg11Yellow,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.refresh, color: AppColors.textSecondary),
+                      icon: Icon(
+                        Icons.refresh,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
                       onPressed: _loadChatHistory,
-                      tooltip: 'Refresh',
+                      tooltip: strings.get('refresh'),
                     ),
                   ],
                 ),
               ),
-              
+
               // Search Bar
               ChatSearchBar(
                 onSearch: (query) {
@@ -811,76 +903,122 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               // Chat History List (Grouped by Topic)
               Expanded(
-                child: _filteredChatHistory.isEmpty
-                    ? Center(
-                        child: Text(
-                          _searchQuery.isEmpty ? 'No conversations yet' : 'No matching conversations',
-                          style: TextStyle(color: AppColors.textMuted),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _filteredChatHistory.length,
-                        itemBuilder: (context, index) {
-                          final topic = _filteredChatHistory[index];
-                          final topicId = topic['topicId']?.toString() ?? '';
-                          final messageCount = topic['messageCount'] ?? 0;
-                          final firstMessage = topic['firstMessage']?.toString() ?? 'New conversation';
-                          final timestamp = topic['timestamp'];
-                          
-                          // Format timestamp
-                          String timeStr = '';
-                          if (timestamp is num) {
-                            final date = DateTime.fromMillisecondsSinceEpoch(timestamp.toInt());
-                            final now = DateTime.now();
-                            final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
-                            if (isToday) {
-                              timeStr = 'Today ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-                            } else {
-                              timeStr = '${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-                            }
-                          }
-                          
-                          // Create a preview title from first message
-                          String title = firstMessage.length > 40 
-                              ? '${firstMessage.substring(0, 40)}...' 
-                              : firstMessage;
-                          
-                          return Card(
-                            color: AppColors.surface,
-                            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                                child: Icon(
-                                  Icons.chat_bubble_outline,
-                                  color: AppColors.primary,
-                                  size: 20,
-                                ),
-                              ),
-                              title: Text(
-                                title,
-                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                '$messageCount messages • $timeStr',
-                                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                              ),
-                              trailing: Icon(
-                                Icons.chevron_right,
-                                color: AppColors.textSecondary,
-                              ),
-                              onTap: () {
-                                Navigator.pop(context);
-                                _loadTopicMessages(topicId);
-                              },
+                child:
+                    _filteredChatHistory.isEmpty
+                        ? Center(
+                          child: Text(
+                            _searchQuery.isEmpty
+                                ? strings.get('noConversations')
+                                : strings.get('noMatchingConversations'),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        )
+                        : ListView.builder(
+                          itemCount: _filteredChatHistory.length,
+                          itemBuilder: (context, index) {
+                            final topic = _filteredChatHistory[index];
+                            final topicId = topic['topicId']?.toString() ?? '';
+                            final messageCount = topic['messageCount'] ?? 0;
+                            final firstMessage =
+                                topic['firstMessage']?.toString() ??
+                                strings.get('newConversation');
+                            final timestamp = topic['timestamp'];
+
+                            // Format timestamp
+                            String timeStr = '';
+                            if (timestamp is num) {
+                              final date = DateTime.fromMillisecondsSinceEpoch(
+                                timestamp.toInt(),
+                              );
+                              final now = DateTime.now();
+                              final isToday =
+                                  date.year == now.year &&
+                                  date.month == now.month &&
+                                  date.day == now.day;
+                              if (isToday) {
+                                timeStr =
+                                    '${strings.get('today')} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                              } else {
+                                timeStr =
+                                    '${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                              }
+                            }
+
+                            // Create a preview title from first message
+                            String title =
+                                firstMessage.length > 40
+                                    ? '${firstMessage.substring(0, 40)}...'
+                                    : firstMessage;
+
+                            return Card(
+                              color: Theme.of(context).colorScheme.surface,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.xs,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusMd,
+                                ),
+                                side:
+                                    ThemeNotifier().isDarkMode
+                                        ? const BorderSide(
+                                          color: Colors.white,
+                                          width: 1.5,
+                                        )
+                                        : BorderSide.none,
+                              ),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.1),
+                                  child: Icon(
+                                    Icons.chat_bubble_outline,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  title,
+                                  style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '$messageCount ${strings.get('messages')} • $timeStr',
+                                  style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.7),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                trailing: Icon(
+                                  Icons.chevron_right,
+                                  color: AppColors.textSecondary,
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _loadTopicMessages(topicId);
+                                },
+                              ),
+                            );
+                          },
+                        ),
               ),
-              
+
               // Clear History Button
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
@@ -891,12 +1029,25 @@ class _ChatScreenState extends State<ChatScreen> {
                     });
                     Navigator.pop(context);
                   },
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Clear Current Chat'),
+                  icon: const Icon(Icons.delete_outline, color: Colors.white),
+                  label: Text(
+                    strings.get('clearCurrentChat'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error.withValues(alpha: 0.3),
-                    foregroundColor: AppColors.error,
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
                     minimumSize: const Size(double.infinity, 48),
+                    side: BorderSide(
+                      color:
+                          ThemeNotifier().isDarkMode
+                              ? Colors.white
+                              : Colors.black,
+                      width: 2.0,
+                    ),
                   ),
                 ),
               ),
@@ -922,9 +1073,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   imageUrl: imageUrl,
                   onTapReadAloud: () => _speak(msg['text'] ?? ''),
                   onDelete: () => _deleteMessage(index),
-                  onImageTap: imageBytes != null 
-                      ? () => _showImageFullscreen(imageBytes) 
-                      : null,
+                  onImageTap:
+                      imageBytes != null
+                          ? () => _showImageFullscreen(imageBytes)
+                          : null,
                 );
               },
             ),
@@ -932,83 +1084,130 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_isLoading)
             Padding(
               padding: const EdgeInsets.all(AppSpacing.sm),
-              child: LinearProgressIndicator(color: AppColors.sdg11Yellow),
+              child: LinearProgressIndicator(color: Colors.white),
             ),
-          
+
           // Pending image preview
           if (_pendingImage != null && _pendingImageBytes != null)
             PendingImagePreview(
               imageBytes: _pendingImageBytes!,
               onClear: _clearPendingImage,
             ),
-          
+
           // Input Area
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              border: Border(top: BorderSide(color: AppColors.primary, width: 2)),
+              border: Border(
+                top: BorderSide(color: AppColors.primary, width: 2),
+              ),
             ),
-            child: Row(
-              children: [
-                if (_isLiveMode) ...[
-                  // Live Mode: Large microphone button
-                  Expanded(
-                    child: Center(
+            child:
+                _isLiveMode
+                    ? Center(
                       child: MicrophoneButton(
                         isRecording: _isRecording,
                         isAiSpeaking: _isAiSpeaking,
                         isEnabled: _isLiveSessionActive,
                         onPressed: _toggleRecording,
                       ),
-                    ),
-                  ),
-                ] else ...[
-                  // Normal Mode: Camera, Gallery, Text, Send buttons
-                  Semantics(
-                      label: "Take Picture",
-                      button: true,
-                      child: IconButton(
-                          icon: Icon(Icons.camera_alt, color: AppColors.sdg9Orange, size: 40),
-                          onPressed: () => _pickImage(ImageSource.camera),
-                          style: IconButton.styleFrom(
-                              padding: const EdgeInsets.all(AppSpacing.md),
+                    )
+                    : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: _textController,
+                          style: AppTextStyles.bodyMedium,
+                          decoration: InputDecoration(
+                            hintText:
+                                _pendingImage != null
+                                    ? strings.get('addMessageAboutImage')
+                                    : strings.get('typeMessage'),
                           ),
-                      ),
-                  ),
-                  Semantics(
-                      label: "Choose from Gallery",
-                      button: true,
-                      child: IconButton(
-                          icon: Icon(Icons.photo_library, color: AppColors.sdg9Orange, size: 40),
-                          onPressed: () => _pickImage(ImageSource.gallery),
-                      ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      style: AppTextStyles.bodyMedium,
-                      decoration: InputDecoration(
-                          hintText: _pendingImage != null 
-                              ? "Add a message about the image..." 
-                              : "Type message...",
-                      ),
-                      onSubmitted: (val) => _handleSendMessage(text: val),
+                          onSubmitted: (val) => _handleSendMessage(text: val),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Row(
+                          children: [
+                            Builder(
+                              builder:
+                                  (context) => IconButton(
+                                    icon: Icon(
+                                      Icons.menu,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                      size: 32,
+                                    ),
+                                    onPressed:
+                                        () => Scaffold.of(context).openDrawer(),
+                                    tooltip: strings.get('settingsAndHistory'),
+                                    style: IconButton.styleFrom(
+                                      padding: const EdgeInsets.all(
+                                        AppSpacing.sm,
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                            Semantics(
+                              label: strings.get('chooseFromGallery'),
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.photo_library,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  size: 36,
+                                ),
+                                onPressed:
+                                    () => _pickImage(ImageSource.gallery),
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                ),
+                              ),
+                            ),
+                            Semantics(
+                              label: strings.get('takePicture'),
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.camera_alt,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  size: 36,
+                                ),
+                                onPressed: () => _pickImage(ImageSource.camera),
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Semantics(
+                              label: strings.get('sendMessage'),
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  Icons.send,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  size: 36,
+                                ),
+                                onPressed:
+                                    () => _handleSendMessage(
+                                      text: _textController.text,
+                                    ),
+                                style: IconButton.styleFrom(
+                                  padding: const EdgeInsets.all(AppSpacing.sm),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Semantics(
-                      label: "Send Message",
-                      button: true,
-                      child: IconButton(
-                          icon: Icon(Icons.send, color: AppColors.primary, size: 40),
-                          onPressed: () => _handleSendMessage(text: _textController.text),
-                      ),
-                  ),
-                ],
-              ],
-            ),
           ),
         ],
       ),
