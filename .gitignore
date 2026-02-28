@@ -56,3 +56,9 @@ node_modules/
 # API Keys
 .env
 *.env
+
+# Firebase Config (Contains API Keys & Project IDs)
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+firebase.json
