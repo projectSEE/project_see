@@ -8,11 +8,7 @@ import '../services/ml_kit_service.dart';
 import '../services/tts_service.dart';
 import '../services/vibration_service.dart';
 import '../services/gemini_service.dart';
-import '../services/text_recognition_service.dart';
-import '../services/image_labeling_service.dart';
-import '../services/context_aggregator_service.dart';
 import '../services/depth_estimation_service.dart';
-import '../models/obstacle_info.dart';
 import '../widgets/camera_preview.dart';
 
 /// Object Detection Screen — Camera + ML Kit + Depth Estimation
@@ -36,11 +32,6 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
   final TTSService _ttsService = TTSService();
   final VibrationService _vibrationService = VibrationService();
   final GeminiService _geminiService = GeminiService();
-  final TextRecognitionService _textRecognitionService =
-      TextRecognitionService();
-  final ImageLabelingService _imageLabelingService = ImageLabelingService();
-  final ContextAggregatorService _contextAggregator =
-      ContextAggregatorService();
   final DepthEstimationService _depthService = DepthEstimationService();
   bool _depthModelLoaded = false;
 
@@ -51,10 +42,6 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
   bool _useStreamMode = true;
   bool _isListening = false;
   List<DetectedObstacle> _obstacles = [];
-  // ignore: unused_field - populated by _processEnhancedContext
-  List<DetectedLabel> _detectedLabels = [];
-  // ignore: unused_field - populated by _processEnhancedContext
-  List<RecognizedTextBlock> _recognizedTexts = [];
   String _statusMessage = 'Initializing...';
   Timer? _announceTimer;
   Timer? _fallbackTimer;
@@ -108,9 +95,6 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
       await _ttsService.initialize();
       await _vibrationService.initialize();
       await _geminiService.initialize();
-      await _textRecognitionService.initialize();
-      await _imageLabelingService.initialize();
-
       // Initialize Depth Anything V2 (non-blocking)
       _depthService.initialize().then((success) {
         if (mounted) {
@@ -187,15 +171,6 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
 
     // Run all ML Kit APIs in parallel
     final obstaclesFuture = _mlKitService.processImage(image, _selectedCamera!);
-    final textFuture = _textRecognitionService.processImage(
-      image,
-      _selectedCamera!,
-    );
-    final labelsFuture = _imageLabelingService.processImage(
-      image,
-      _selectedCamera!,
-    );
-
     final obstacles = await obstaclesFuture;
 
     // Check for repeated errors
@@ -247,81 +222,6 @@ class _ObjectDetectionScreenState extends State<ObjectDetectionScreen>
         proximity,
         intensityBoost: isApproaching ? 0.2 : 0.0,
       );
-    }
-
-    _processEnhancedContext(obstacles, textFuture, labelsFuture);
-  }
-
-  Future<void> _processEnhancedContext(
-    List<DetectedObstacle> obstacles,
-    Future<List<RecognizedTextBlock>> textFuture,
-    Future<List<DetectedLabel>> labelsFuture,
-  ) async {
-    try {
-      final textBlocks = await textFuture.timeout(
-        const Duration(milliseconds: 500),
-        onTimeout: () => <RecognizedTextBlock>[],
-      );
-
-      final labels = await labelsFuture.timeout(
-        const Duration(milliseconds: 500),
-        onTimeout: () => <DetectedLabel>[],
-      );
-
-      if (textBlocks.isNotEmpty) {
-        debugPrint(
-          '📖 Text detected: ${textBlocks.map((t) => t.text).join(", ")}',
-        );
-      }
-      if (labels.isNotEmpty) {
-        debugPrint('🏷️ Labels: ${labels.map((l) => l.label).join(", ")}');
-      }
-
-      if (mounted && (labels.isNotEmpty || textBlocks.isNotEmpty)) {
-        setState(() {
-          _detectedLabels = labels;
-          _recognizedTexts = textBlocks;
-        });
-      }
-
-      if (!_contextAggregator.shouldUpdate()) return;
-
-      final obstacleInfos =
-          obstacles
-              .map(
-                (o) => ObstacleInfo(
-                  label: o.label,
-                  position: o.position,
-                  relativeSize: o.relativeSize,
-                ),
-              )
-              .toList();
-
-      final context = _contextAggregator.aggregate(
-        obstacles: obstacleInfos,
-        textBlocks: textBlocks,
-        labels: labels,
-      );
-
-      // Don't queue new announcements while TTS is still speaking
-      if (_ttsService.isSpeaking) return;
-
-      // Speak aggregated context based on priority
-      if (context.priority == ContextPriority.high &&
-          _contextAggregator.isSignificantChange(context.summary)) {
-        // High priority: very close obstacle — speak urgently if new
-        await _ttsService.speakUrgent(context.summary);
-      } else if (context.priority == ContextPriority.medium &&
-          _contextAggregator.isSignificantChange(context.summary)) {
-        // Medium priority: speak only when context changed (new text, etc.)
-        await _ttsService.speak(context.summary);
-      }
-      // Low priority: silent — user can query manually
-
-      _contextAggregator.markUpdated(context.summary);
-      debugPrint('🧩 Context [${context.priority.name}]: ${context.summary}');
-    } catch (e) {
-      debugPrint('❌ Enhanced context error: $e');
     }
   }
 

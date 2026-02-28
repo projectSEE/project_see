@@ -332,23 +332,34 @@ class FirestoreService {
 
   // ==================== AI Context ====================
 
-  /// Build context for AI including user settings and recent messages.
+  /// Build context for AI including user settings, location, and recent messages.
   Future<Map<String, dynamic>> buildContextForAI(
     String userId, {
     double? latitude,
     double? longitude,
+    String? userAddress,
   }) async {
     final context = <String, dynamic>{};
 
     try {
       context['accessibilitySettings'] = await getAccessibilitySettings(userId);
 
-      // Get nearby POIs if location provided
+      // Include user location if available
       if (latitude != null && longitude != null) {
+        context['userLocation'] = {
+          'latitude': latitude,
+          'longitude': longitude,
+          'address': userAddress,
+        };
+
+        // Get nearby POIs
         final allPOIs = await getAllPOIs();
         final nearbyPOIs =
             allPOIs.where((poi) {
-              final coords = poi['coords'] as Map<String, dynamic>?;
+              // Support both 'location' (new) and 'coords' (legacy) field names
+              final coords =
+                  (poi['location'] as Map<String, dynamic>?) ??
+                  (poi['coords'] as Map<String, dynamic>?);
               if (coords == null) return false;
 
               final lat = coords['latitude'] as num?;
@@ -369,5 +380,41 @@ class FirestoreService {
     }
 
     return context;
+  }
+
+  /// Save a new POI to the central pois collection (accessible by all users).
+  /// Structure: pois/{poiName} with location and description fields.
+  Future<bool> savePOI({
+    required String name,
+    required String type,
+    required String description,
+    required double latitude,
+    required double longitude,
+    String? safetyNotes,
+    String? address,
+    String? addedBy,
+  }) async {
+    try {
+      // Use name as document ID so it's visible in Firebase console
+      final docId = name.replaceAll(RegExp(r'[/\\.]'), '_').trim();
+      await _db.collection('pois').doc(docId).set({
+        'name': name,
+        'type': type,
+        'description': description,
+        'safetyNotes': safetyNotes ?? '',
+        'location': {
+          'latitude': latitude,
+          'longitude': longitude,
+          'address': address ?? '',
+        },
+        'addedBy': addedBy ?? 'anonymous',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('✅ POI saved to Firestore: $name ($docId)');
+      return true;
+    } catch (e) {
+      print('❌ Error saving POI: $e');
+      return false;
+    }
   }
 }

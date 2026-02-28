@@ -12,6 +12,7 @@ import 'package:vibration/vibration.dart';
 // import 'package:url_launcher/url_launcher.dart'; // No longer needed for calls
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:just_audio/just_audio.dart';
 import 'screens/awareness_screen.dart';
 import 'screens/login_screen.dart';
@@ -88,6 +89,28 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
   final LanguageNotifier _langNotifier = LanguageNotifier();
   final TextScaleNotifier _textScaleNotifier = TextScaleNotifier();
 
+  /// Check if user has a completed profile in Firestore
+  static Future<bool> _checkUserProfileExists(User user) async {
+    try {
+      final displayName = user.displayName;
+      if (displayName == null || displayName.isEmpty) return false;
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(displayName)
+              .get();
+      if (!doc.exists) return false;
+      final profile = doc.data()?['profile'] as Map<String, dynamic>?;
+      // Check that essential fields exist (phone + emergency contact)
+      return profile != null &&
+          profile['phone'] != null &&
+          (profile['phone'] as String).isNotEmpty;
+    } catch (e) {
+      debugPrint('⚠️ Error checking user profile: $e');
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -143,6 +166,29 @@ class _VisualAssistantAppState extends State<VisualAssistantApp> {
             );
             if (isEmailProvider && !user.emailVerified) {
               return const LoginScreen();
+            }
+            // For Google users, check if profile exists in Firestore
+            final isGoogleProvider = user.providerData.any(
+              (p) => p.providerId == 'google.com',
+            );
+            if (isGoogleProvider) {
+              return FutureBuilder<bool>(
+                future: _checkUserProfileExists(user),
+                builder: (context, profileSnapshot) {
+                  if (profileSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final hasProfile = profileSnapshot.data ?? false;
+                  if (!hasProfile) {
+                    // New Google user — send to registration completion
+                    return LoginScreen(isNewGoogleUser: true, googleUser: user);
+                  }
+                  return const SafetyMonitor(child: HomeScreen());
+                },
+              );
             }
             return const SafetyMonitor(child: HomeScreen());
           } else {
@@ -504,6 +550,7 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
   bool _isFreeFalling = false;
   DateTime? _freeFallTimestamp;
   bool _isAlertActive = false;
+  String _emergencyPhone = '';
 
   final double _freeFallThreshold = 1.5;
   final double _impactThreshold = 20.0;
@@ -513,7 +560,29 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
   void initState() {
     super.initState();
     _audioPlayer = AudioPlayer();
+    _loadEmergencyContact();
     _initFallDetection();
+  }
+
+  Future<void> _loadEmergencyContact() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+      if (doc.exists) {
+        final profile = doc.data()?['profile'] as Map<String, dynamic>?;
+        if (profile != null && profile['emergencyContactPhone'] != null) {
+          _emergencyPhone = profile['emergencyContactPhone'] as String;
+          debugPrint('📞 Emergency contact loaded: $_emergencyPhone');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load emergency contact: $e');
+    }
   }
 
   void _initFallDetection() {
@@ -562,11 +631,19 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
             onCancel: () {
               _stopAlarm();
               setState(() => _isAlertActive = false);
+              // Show feedback after cancel (false trigger)
+              _showFallDetectionFeedback(callWasMade: false);
             },
             onTrigger: () {
               _stopAlarm();
-              // --- UPDATED CALL LOGIC ---
-              _executeForceCall("+60175727549");
+              setState(() => _isAlertActive = false);
+              if (_emergencyPhone.isNotEmpty) {
+                _executeForceCall(_emergencyPhone);
+              } else {
+                debugPrint('⚠️ No emergency contact set');
+              }
+              // Show feedback after call trigger
+              _showFallDetectionFeedback(callWasMade: true);
             },
           ),
     ).then((_) {
@@ -582,13 +659,296 @@ class _SafetyMonitorState extends State<SafetyMonitor> {
     _audioPlayer.stop();
   }
 
-  // --- THIS IS THE FIXED FUNCTION ---
   Future<void> _executeForceCall(String phoneNumber) async {
-    // FlutterPhoneDirectCaller automatically calls the number
-    // It requires the 'android.permission.CALL_PHONE' in AndroidManifest.xml
     bool? res = await FlutterPhoneDirectCaller.callNumber(phoneNumber);
     if (res == false) {
       debugPrint("Failed to call");
+    }
+  }
+
+  // ── Fall Detection Feedback Dialog ──
+
+  void _showFallDetectionFeedback({required bool callWasMade}) {
+    if (!mounted) return;
+    // Delay slightly so the emergency dialog fully dismisses first
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      bool? triggerCorrect;
+      bool? callCorrect;
+      int step =
+          1; // 1 = trigger question, 2 = call question (only if call was made)
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (ctx) => StatefulBuilder(
+              builder: (ctx, setDialogState) {
+                if (step == 1) {
+                  // Question 1: Was fall detection triggered correctly?
+                  return AlertDialog(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    title: const Row(
+                      children: [
+                        Icon(
+                          Icons.feedback_outlined,
+                          color: Colors.amberAccent,
+                          size: 28,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Fall Detection Feedback',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: const Text(
+                      'Was the fall detection triggered correctly?',
+                      style: TextStyle(color: Colors.white70, fontSize: 18),
+                    ),
+                    actionsAlignment: MainAxisAlignment.spaceEvenly,
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          triggerCorrect = false;
+                          if (callWasMade) {
+                            setDialogState(() => step = 2);
+                          } else {
+                            Navigator.pop(ctx);
+                            _uploadFallFeedback(
+                              triggerCorrect: false,
+                              callCorrect: null,
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFE53935,
+                            ).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFE53935,
+                              ).withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: const Text(
+                            'Incorrect',
+                            style: TextStyle(
+                              color: Color(0xFFEF5350),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          triggerCorrect = true;
+                          if (callWasMade) {
+                            setDialogState(() => step = 2);
+                          } else {
+                            Navigator.pop(ctx);
+                            _uploadFallFeedback(
+                              triggerCorrect: true,
+                              callCorrect: null,
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Correct',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  // Question 2: Was the correct emergency number called?
+                  return AlertDialog(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    title: const Row(
+                      children: [
+                        Icon(
+                          Icons.phone_callback_outlined,
+                          color: Colors.amberAccent,
+                          size: 28,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Emergency Call Feedback',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: Text(
+                      'Was the correct emergency number called?\n\nNumber dialed: $_emergencyPhone',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 18,
+                      ),
+                    ),
+                    actionsAlignment: MainAxisAlignment.spaceEvenly,
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          callCorrect = false;
+                          Navigator.pop(ctx);
+                          _uploadFallFeedback(
+                            triggerCorrect: triggerCorrect!,
+                            callCorrect: false,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFE53935,
+                            ).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFE53935,
+                              ).withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: const Text(
+                            'Incorrect',
+                            style: TextStyle(
+                              color: Color(0xFFEF5350),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          callCorrect = true;
+                          Navigator.pop(ctx);
+                          _uploadFallFeedback(
+                            triggerCorrect: triggerCorrect!,
+                            callCorrect: true,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Correct',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+              },
+            ),
+      );
+    });
+  }
+
+  Future<void> _uploadFallFeedback({
+    required bool triggerCorrect,
+    required bool? callCorrect,
+  }) async {
+    try {
+      // Get user's phone number from Firestore profile
+      String userPhone = '';
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.displayName != null) {
+        final doc =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.displayName)
+                .get();
+        if (doc.exists) {
+          final profile = doc.data()?['profile'] as Map<String, dynamic>?;
+          userPhone = profile?['phone'] as String? ?? '';
+        }
+      }
+
+      await FirebaseFirestore.instance
+          .collection('fall_detection_feedback')
+          .add({
+            'userPhone': userPhone,
+            'triggerCorrect': triggerCorrect ? 'correct' : 'incorrect',
+            'callCorrect':
+                callCorrect != null
+                    ? (callCorrect ? 'correct' : 'incorrect')
+                    : 'not_applicable',
+            'emergencyNumberDialed': _emergencyPhone,
+            'timestamp': FieldValue.serverTimestamp(),
+            'deviceTime': DateTime.now().toIso8601String(),
+            'userId': user?.uid ?? '',
+          });
+
+      debugPrint('✅ Fall detection feedback uploaded');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Thanks! Feedback recorded.'),
+            backgroundColor: Color(0xFF4CAF50),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Fall detection feedback upload failed: $e');
     }
   }
 

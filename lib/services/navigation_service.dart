@@ -66,7 +66,7 @@ class PlaceResult {
 
 /// Navigation service for blind-friendly navigation
 class NavigationService {
-  static const String _apiKey = 'AIzaSyAYJLNWbHgn-Fv5x-L04Ejob3OUudZ0usA';
+  static const String _apiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
   
   final TTSService _ttsService = TTSService();
   

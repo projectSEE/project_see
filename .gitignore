@@ -52,3 +52,7 @@ app.*.map.json
 .fvm/
 # Node modules
 node_modules/
+
+# API Keys
+.env
+*.env
