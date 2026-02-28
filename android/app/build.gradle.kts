@@ -8,6 +8,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Load key.properties for local development
+val keyPropertiesFile = rootProject.file("key.properties")
+val keyProperties = java.util.Properties()
+if (keyPropertiesFile.exists()) {
+    keyProperties.load(java.io.FileInputStream(keyPropertiesFile))
+}
+
 android {
     namespace = "com.kitahack.see"
     compileSdk = 36
@@ -22,11 +29,17 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: keyProperties.getProperty("storeFile", "upload-keystore.jks"))
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: keyProperties.getProperty("storePassword", "")
+            keyAlias = System.getenv("KEY_ALIAS") ?: keyProperties.getProperty("keyAlias", "upload")
+            keyPassword = System.getenv("KEY_PASSWORD") ?: keyProperties.getProperty("keyPassword", "")
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.kitahack.see"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24  // Required for ML Kit and flutter_tts
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -35,9 +48,7 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

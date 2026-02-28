@@ -40,9 +40,18 @@ jobs:
       # - name: Run Tests
       #   run: flutter test
 
-      # 6. Build the APK
+      # 6. Decode release keystore for signing
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/android/app/upload-keystore.jks
+
+      # 7. Build the APK
       - name: Build Release APK
         run: flutter build apk --release --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/android/app/upload-keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: upload
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       # 7. Upload APK as artifact (for download)
       - name: Upload APK Artifact
