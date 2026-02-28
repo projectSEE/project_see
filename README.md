@@ -95,7 +95,6 @@ lib/
 │   ├── live_screen.dart          # Gemini Live API assistant
 │   ├── navigation_screen.dart    # Google Maps navigation
 │   ├── object_detection_screen.dart  # ML Kit object detection
-│   ├── obstacle_detector_screen.dart # Detection hub
 │   ├── sight_facts_screen.dart   # Educational content
 │   └── vision_simulator_screen.dart  # Eye condition simulator
 ├── services/
