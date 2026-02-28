@@ -86,15 +86,16 @@
 lib/
 ├── main.dart                     # App entry point, auth flow, fall detection
 ├── firebase_options.dart         # Firebase configuration
-├── models/
-│   └── obstacle_info.dart        # Obstacle data model
+├── core/                         # Core configs like localization
 ├── screens/
 │   ├── login_screen.dart         # Auth (email + Google Sign-In)
 │   ├── awareness_screen.dart     # Awareness feature menu
 │   ├── chat_screen.dart          # AI chatbot (text/image/voice/live)
 │   ├── live_screen.dart          # Gemini Live API assistant
 │   ├── navigation_screen.dart    # Google Maps navigation
-│   ├── object_detection_screen.dart  # ML Kit object detection
+│   ├── object_detection_screen.dart  # ML Kit object detection & Detection hub
+│   ├── profile_screen.dart       # User profile & emergency contacts
+│   ├── settings_screen.dart      # App settings
 │   ├── sight_facts_screen.dart   # Educational content
 │   └── vision_simulator_screen.dart  # Eye condition simulator
 ├── services/
@@ -102,12 +103,13 @@ lib/
 │   ├── gemini_service.dart                # Gemini AI integration
 │   ├── location_awareness_service.dart    # Location context
 │   ├── ml_kit_service.dart                # ML Kit object detection
+│   ├── depth_estimation_service.dart      # Visual depth estimation
 │   ├── navigation_service.dart            # Navigation logic
 │   ├── tts_service.dart                   # Text-to-speech
 │   ├── vibration_service.dart             # Haptic feedback
 │   └── accessible_live_connector.dart     # Live API connector
 ├── theme/                        # App theming (light/dark)
-├── utils/                        # Audio I/O, conversation export
+├── utils/                        # Audio I/O, accessibility, export
 └── widgets/                      # Reusable UI components
 ```
 
