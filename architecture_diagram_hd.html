@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEE: Mobile Accessibility App Architecture</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(145deg, #0a0c14 0%, #0d1020 30%, #101528 60%, #0a0c14 100%);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 80px 60px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            width: 1200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Main Title */
+        .main-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #e8ecf4;
+            margin-bottom: 50px;
+            letter-spacing: 0.3px;
+            text-align: center;
+        }
+
+        .main-title span {
+            color: #e8ecf4;
+        }
+
+        /* Component Box Base */
+        .component-box {
+            background: linear-gradient(180deg, #161a26 0%, #12151f 100%);
+            border-radius: 16px;
+            width: 100%;
+            padding: 32px 36px;
+            border: 1.5px solid;
+            position: relative;
+        }
+
+        .box-header {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 28px;
+            text-align: center;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+        }
+
+        /* ===== USER INTERFACE ===== */
+        .ui-box {
+            border-color: rgba(66, 133, 244, 0.4);
+            box-shadow: 0 0 30px rgba(66, 133, 244, 0.08), inset 0 1px 0 rgba(66, 133, 244, 0.15);
+        }
+
+        .ui-box .box-header {
+            color: #6ba3f7;
+        }
+
+        .ui-icons {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+        }
+
+        .ui-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .ui-icon .icon-circle {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .ui-icon svg {
+            width: 26px;
+            height: 26px;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .ui-icon-label {
+            color: #9ca3af;
+            font-size: 12.5px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        /* Icon Colors */
+        .icon-camera svg {
+            stroke: #FBBC04;
+        }
+
+        .icon-mic svg {
+            stroke: #81c995;
+        }
+
+        .icon-speaker svg {
+            stroke: #8ab4f8;
+        }
+
+        .icon-haptic svg {
+            stroke: #f28b82;
+        }
+
+        .icon-accel svg {
+            stroke: #c58af9;
+        }
+
+        /* ===== FLUTTER APP ===== */
+        .flutter-box {
+            border-color: rgba(52, 168, 83, 0.4);
+            box-shadow: 0 0 30px rgba(52, 168, 83, 0.08), inset 0 1px 0 rgba(52, 168, 83, 0.15);
+        }
+
+        .flutter-box .box-header {
+            color: #6fcf97;
+        }
+
+        .flutter-grid {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .flutter-item {
+            background: linear-gradient(180deg, #1e2330 0%, #1a1e2a 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 16px 18px;
+            color: #d4d8e0;
+            font-size: 13.5px;
+            font-weight: 600;
+            text-align: center;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.5;
+            transition: background 0.2s;
+        }
+
+        /* ===== BOTTOM ROW ===== */
+        .bottom-row {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .bottom-box {
+            flex: 1;
+            padding: 28px 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bottom-item {
+            background: linear-gradient(180deg, #1e2330 0%, #1a1e2a 100%);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 10px;
+            padding: 18px 14px;
+            color: #c8cdd6;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            margin-bottom: 12px;
+            line-height: 1.5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bottom-item:last-child {
+            margin-bottom: 0;
+        }
+
+        /* On-Device AI */
+        .ondevice-box {
+            border-color: rgba(249, 171, 0, 0.4);
+            box-shadow: 0 0 25px rgba(249, 171, 0, 0.06), inset 0 1px 0 rgba(249, 171, 0, 0.12);
+        }
+
+        .ondevice-box .box-header {
+            color: #fcd663;
+        }
+
+        /* Google Cloud */
+        .gcloud-box {
+            border-color: rgba(52, 168, 83, 0.35);
+            box-shadow: 0 0 25px rgba(52, 168, 83, 0.06), inset 0 1px 0 rgba(52, 168, 83, 0.12);
+        }
+
+        .gcloud-box .box-header {
+            color: #6fcf97;
+        }
+
+        /* Cloud AI */
+        .cloudai-box {
+            border-color: rgba(161, 66, 244, 0.4);
+            box-shadow: 0 0 25px rgba(161, 66, 244, 0.08), inset 0 1px 0 rgba(161, 66, 244, 0.15);
+        }
+
+        .cloudai-box .box-header {
+            color: #c58af9;
+        }
+
+        /* ===== CONNECTORS ===== */
+        .connector-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 50px;
+            width: 100%;
+        }
+
+        .conn-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+
+        .arrow-line {
+            width: 2.5px;
+            flex: 1;
+        }
+
+        .arrow-head {
+            width: 0;
+            height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+        }
+
+        .connector-three {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            padding: 0 160px;
+            height: 50px;
+        }
+
+        /* Subtle text label under items */
+        .item-detail {
+            color: #6b7280;
+            font-size: 11px;
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        /* Accent dash on bottom-items */
+        .ondevice-box .bottom-item {
+            border-left: 3px solid rgba(249, 171, 0, 0.35);
+        }
+
+        .gcloud-box .bottom-item {
+            border-left: 3px solid rgba(52, 168, 83, 0.3);
+        }
+
+        .cloudai-box .bottom-item {
+            border-left: 3px solid rgba(161, 66, 244, 0.35);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+        <!-- Main Title -->
+        <div class="main-title">SEE: Mobile Accessibility App Architecture</div>
+
+        <!-- User Interface -->
+        <div class="component-box ui-box">
+            <div class="box-header">User Interface</div>
+            <div class="ui-icons">
+                <div class="ui-icon icon-camera">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="7" width="18" height="14" rx="2" ry="2"></rect>
+                            <circle cx="12" cy="14" r="3"></circle>
+                            <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </div>
+                    <div class="ui-icon-label">Camera</div>
+                </div>
+                <div class="ui-icon icon-mic">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="22"></line>
+                        </svg>
+                    </div>
+                    <div class="ui-icon-label">Microphone</div>
+                </div>
+                <div class="ui-icon icon-speaker">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                        </svg>
+                    </div>
+                    <div class="ui-icon-label">Speaker</div>
+                </div>
+                <div class="ui-icon icon-haptic">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M5 8l3-3 3 3"></path>
+                            <path d="M5 16l3 3 3-3"></path>
+                            <path d="M13 8l3-3 3 3"></path>
+                            <path d="M13 16l3 3 3-3"></path>
+                            <line x1="8" y1="5" x2="8" y2="19"></line>
+                            <line x1="16" y1="5" x2="16" y2="19"></line>
+                        </svg>
+                    </div>
+                    <div class="ui-icon-label">Vibration / Haptic</div>
+                </div>
+                <div class="ui-icon icon-accel">
+                    <div class="icon-circle">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                            <line x1="4" y1="12" x2="20" y2="12"></line>
+                            <line x1="12" y1="4" x2="12" y2="20"></line>
+                            <circle cx="12" cy="12" r="2"></circle>
+                        </svg>
+                    </div>
+                    <div class="ui-icon-label">Accelerometer Sensor</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connector: UI → Flutter -->
+        <div class="connector-area">
+            <div class="conn-item">
+                <div class="arrow-line" style="background-color: #8AB4F8;"></div>
+                <div class="arrow-head" style="border-top: 9px solid #8AB4F8;"></div>
+            </div>
+        </div>
+
+        <!-- Flutter App -->
+        <div class="component-box flutter-box">
+            <div class="box-header">Flutter App (Dart)</div>
+            <div class="flutter-grid">
+                <div class="flutter-item">Object<br>Detection</div>
+                <div class="flutter-item">Live Vision<br>Assistant</div>
+                <div class="flutter-item">AI Chatbot</div>
+                <div class="flutter-item">Navigation</div>
+                <div class="flutter-item">Fall<br>Detection</div>
+            </div>
+        </div>
+
+        <!-- Connector: Flutter → Bottom Row -->
+        <div class="connector-three">
+            <div class="conn-item">
+                <div class="arrow-line" style="background-color: #FCD663;"></div>
+                <div class="arrow-head" style="border-top: 9px solid #FCD663;"></div>
+            </div>
+            <div class="conn-item">
+                <div class="arrow-line" style="background-color: #6fcf97;"></div>
+                <div class="arrow-head" style="border-top: 9px solid #6fcf97;"></div>
+            </div>
+            <div class="conn-item">
+                <div class="arrow-line" style="background-color: #D7BCFA;"></div>
+                <div class="arrow-head" style="border-top: 9px solid #D7BCFA;"></div>
+            </div>
+        </div>
+
+        <!-- Bottom Row -->
+        <div class="bottom-row">
+            <!-- On-Device AI -->
+            <div class="component-box bottom-box ondevice-box">
+                <div class="box-header">On-Device AI</div>
+                <div class="bottom-item">Google ML Kit —<br>Object Detection</div>
+                <div class="bottom-item">Depth Anything V2 —<br>Distance Estimation</div>
+                <div class="bottom-item">Accelerometer —<br>Fall Detection<br><span class="item-detail">(Native Android
+                        Service)</span></div>
+            </div>
+
+            <!-- Google Cloud Services -->
+            <div class="component-box bottom-box gcloud-box">
+                <div class="box-header">Google Cloud Services</div>
+                <div class="bottom-item">Firebase Auth</div>
+                <div class="bottom-item">Cloud Firestore</div>
+                <div class="bottom-item">Google Maps Platform</div>
+            </div>
+
+            <!-- Cloud AI (Vertex AI) -->
+            <div class="component-box bottom-box cloudai-box">
+                <div class="box-header">Cloud AI (Vertex AI)</div>
+                <div class="bottom-item">Gemini 2.5 Flash —<br>Chat and Vision</div>
+                <div class="bottom-item">Gemini Live 2.5 Flash —<br>Real-time Audio/Video Streaming</div>
+            </div>
+        </div>
+
+    </div>
+</body>
+
+</html>
